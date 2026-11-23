@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { makeSession } from '@/lib/s';
-import I from '@/components/Icon';
+export const metadata = { title: 'Weldmart Admin: kirish' };
 export default async function Login({ searchParams }: any) {
   const sp = await searchParams;
   async function go(fd: FormData) {
@@ -12,13 +12,13 @@ export default async function Login({ searchParams }: any) {
     redirect('/login?x=1');
   }
   return (<div className="login">
-    <section className="hero"><span className="brand" style={{ padding: 0 }}><span className="logo">W</span>Weldmart Admin</span>
-      <h1>Instagram, reklama va mijoz xabarlari — bitta panelda</h1>
-      <ul><li><i><I n="ig" s={17} /></i>Postlarni joylash va rejalashtirish</li><li><i><I n="bolt" s={17} /></i>Kalit so'zli kommentlarga avtomatik Direct</li>
-        <li><i><I n="chart" s={17} /></i>Meta reklama xarajati va natijalari</li><li><i><I n="send" s={17} /></i>Yangi komment va xabarlar Telegramga</li></ul></section>
-    <section className="lf"><form action={go}><h2 style={{ margin: 0, fontSize: 26 }}>Kabinetga kirish</h2><p className="m" style={{ marginTop: -8 }}>Faqat administrator uchun</p>
-      <label>Login<input name="e" type="text" autoComplete="username" required /></label>
-      <label>Parol<input name="p" type="password" autoComplete="current-password" required /></label>
-      {sp?.x && <div className="alert">Login yoki parol noto'g'ri</div>}<button className="btn p">Kirish</button></form></section>
+    <section className="login-l"><span className="mark" style={{ padding: 0 }}><span>W</span>Weldmart</span>
+      <h1>Hamma akkauntlar bitta navbatda</h1>
+      <ul><li>Bir nechta Instagram akkauntga post rejalashtirish</li><li>Kalit so'zli kommentga avtomatik Direct</li><li>Meta reklama xarajati va natijasi</li><li>Komment va Direct'lar Telegram botga</li></ul></section>
+    <section className="login-r"><form action={go} className="form"><h2 style={{ fontSize: 'var(--text-2xl)' }}>Kirish</h2>
+      <label className="field"><span>Login</span><input name="e" type="text" autoComplete="username" required /></label>
+      <label className="field"><span>Parol</span><input name="p" type="password" autoComplete="current-password" required /></label>
+      {sp?.x && <p className="note note-bad" role="alert">Login yoki parol noto'g'ri.</p>}
+      <button type="submit" className="btn btn-p">Kirish</button></form></section>
   </div>);
 }

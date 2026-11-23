@@ -1,18 +1,17 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { db, requireAuth, secret } from '@/lib/s';
-import { range, money, num, q } from '@/lib/ui';
+import { range, money, num, dt, q, handle } from '@/lib/ui';
 import { accountStats, sum } from '@/lib/meta';
-import Shell, { Av } from '@/components/Shell';
-import { Stat, RangeBar, Flash } from '@/components/Bits';
-import I from '@/components/Icon';
+import Shell, { Av, projHome } from '@/components/Shell';
+import { Reading, Range, Flash } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 export default async function Home({ searchParams }: any) {
   await requireAuth();
   const sp = await searchParams, r = range(sp, '30');
   const { data: ps, error: le } = await db().from('projects').select('*').order('created_at');
-  const projects = ps || [], targets = projects.filter(p => p.kind === 'target'), content = projects.filter(p => p.kind !== 'target');
+  const projects = ps || [], targets = projects.filter(p => p.kind === 'target');
   const hasToken = !!(await secret('META_TOKEN'));
   const rows = await Promise.all(targets.map(async p => {
     if (!p.ad_account_id || !hasToken) return { p, cur: null as any, prev: null as any, err: '' };
@@ -22,68 +21,71 @@ export default async function Home({ searchParams }: any) {
   const cur = sum(rows.filter(x => x.cur).map(x => x.cur)), prev = sum(rows.filter(x => x.prev).map(x => x.prev));
   const cpr = cur.results ? cur.spend / cur.results : 0, ppr = prev.results ? prev.spend / prev.results : 0;
   const s0 = new Date(r.since + 'T00:00:00+05:00').toISOString(), s1 = new Date(r.until + 'T23:59:59+05:00').toISOString();
-  const { data: posts } = await db().from('ig_posts').select('project_id,status,scheduled_at,created_at');
+  const { data: posts } = await db().from('ig_posts').select('id,project_id,status,scheduled_at,created_at,caption');
   const { data: rules } = await db().from('autoreply_rules').select('project_id,active,sent');
   const at = (x: any) => x.scheduled_at || x.created_at;
   const pubIn = (pid?: string) => (posts || []).filter(x => x.status === 'published' && at(x) >= s0 && at(x) <= s1 && (!pid || x.project_id === pid)).length;
-  const queued = (pid?: string) => (posts || []).filter(x => (x.status === 'scheduled' || x.status === 'publishing') && (!pid || x.project_id === pid)).length;
-  const connected = projects.filter(p => p.ig_user_id || p.ad_account_id).length;
+  const queue = (posts || []).filter(x => x.status === 'scheduled').sort((a, b) => Date.parse(at(a)) - Date.parse(at(b)));
+  const qOf = (pid: string) => queue.filter(x => x.project_id === pid).length;
+  const sent = (rules || []).reduce((s, x) => s + x.sent, 0);
+  const byId = Object.fromEntries(projects.map(p => [p.id, p]));
+  const igs = projects.filter(p => p.ig_user_id || p.kind !== 'target');
   async function add(fd: FormData) {
     'use server'; await requireAuth();
-    const name = String(fd.get('name') || '').trim(), kind = fd.get('kind') === 'target' ? 'target' : 'kontent';
-    if (!name) redirect('/?err=' + q('Loyiha nomini kiriting'));
-    const { data, error } = await db().from('projects').insert({ name, kind }).select('id').single();
+    const name = String(fd.get('name') || '').trim();
+    if (!name) redirect('/?err=' + q('Loyiha nomini kiriting.'));
+    const { data, error } = await db().from('projects').insert({ name, kind: 'target' }).select('id').single();
     if (error) redirect('/?err=' + q(error.message));
-    redirect(`/p/${data!.id}/settings?ok=` + q("Loyiha yaratildi — endi akkauntlarni ulang"));
+    redirect(`/p/${data!.id}/settings?ok=` + q('Loyiha yaratildi. Endi reklama kabinetini tanlang.'));
   }
-  const delta = (c: number, p: number) => { if (!p || !c) return null; const d = Math.round(((c - p) / p) * 100); return <small className={d <= 0 ? 'g' : 'r'}> {d <= 0 ? '▼' : '▲'}</small>; };
-  const ints = [
-    { n: 'Meta Ads', d: 'Facebook va Instagram reklama statistikasi', ic: 'meta', c: '#1877f2', s: hasToken ? 'Tayyor' : 'Token kerak', ok: hasToken, href: '/settings' },
-    { n: 'Instagram', d: 'Post joylash, rejalashtirish va kalendar', ic: 'ig', c: 'linear-gradient(135deg,#f9a03f,#d62976,#7b3fe4)', s: 'Tayyor', ok: true },
-    { n: 'Avtojavob', d: "Kalit so'zli kommentga avtomatik Direct", ic: 'bolt', c: '#4f8f83', s: 'Tayyor', ok: true },
-    { n: 'Telegram', d: 'Yangi komment va Direct shu chatga xabar boradi', ic: 'send', c: '#2aa1da', s: 'Tayyor', ok: true },
-    { n: 'amoCRM', d: "CRM'dagi lid va sotuvlarni reklamaga bog'lash", ic: 'crm', c: '#2f6fd8', s: 'Tez kunda', ok: false },
-    { n: 'Google Sheets', d: 'Lidlarni jadvalga avtomatik yozish', ic: 'sheet', c: '#1e9e55', s: 'Tez kunda', ok: false },
-  ];
   return (<Shell active="home" crumbs={[{ label: 'Umumiy' }]}>
-    {le && <div className="alert">Xato: {le.message}</div>}<Flash sp={sp} />
-    <div className="ph"><div><h1>Umumiy ko'rinish</h1><p className="m">Barcha loyihalar · {r.since} → {r.until} ({r.len} kun) · avvalgi {r.len} kun bilan solishtirma</p></div>
-      <details className="pop"><summary className="btn p"><I n="plus" s={15} />Yangi loyiha</summary>
-        <form action={add} className="popc"><b style={{ fontSize: 16 }}>Yangi loyiha</b>
-          <label>Loyiha nomi<input name="name" required autoComplete="off" placeholder="Masalan: Weldmart" /></label>
-          <div className="seg"><label><input type="radio" name="kind" value="kontent" defaultChecked />Kontent<small>Instagram postlar, avtojavob</small></label>
-            <label><input type="radio" name="kind" value="target" />Target<small>Meta reklama statistikasi</small></label></div>
-          <button className="btn p">Yaratish</button></form></details></div>
-    <RangeBar r={r} presets={[['today', 'Bugun'], ['yest', 'Kecha'], ['7', '7 kun'], ['30', '30 kun'], ['90', '90 kun']]} />
-    <div className="stats">
-      <Stat label="Reklama xarajati" v={money(cur.spend)} cur={cur.spend} prev={prev.spend} f={money} good="none" />
-      <Stat label="Natijalar (lid + xabar)" v={num(cur.results)} cur={cur.results} prev={prev.results} f={num} good="up" />
-      <Stat label="Bitta natija narxi" v={cpr ? money(cpr) : '—'} cur={cpr} prev={ppr} f={money} good="down" />
-      <Stat label="Kuniga o'rtacha xarajat" v={money(cur.spend / r.len)} sub={`${(cur.results / r.len).toFixed(1)} natija / kun`} />
-      <Stat label="Ko'rsatuvlar" v={num(cur.impressions)} sub={`CPM ${cur.impressions ? money((cur.spend / cur.impressions) * 1000) : '—'}`} />
-      <Stat label="Bosishlar" v={num(cur.clicks)} sub={`CTR ${cur.impressions ? ((cur.clicks / cur.impressions) * 100).toFixed(2) : '0'}% · CPC ${cur.clicks ? money(cur.spend / cur.clicks) : '—'}`} />
-      <Stat label="Instagram postlar" v={num(pubIn())} sub={`davrda chiqdi · ${queued()} ta navbatda`} />
-      <Stat label="Loyihalar / ulanishlar" v={`${projects.length} / ${connected}`} sub="jami loyiha / ulangan" />
-    </div>
-    <h2 className="h2">Target loyihalar</h2>
-    <div className="card tbl">{targets.length ? <><table><thead><tr><th>Loyiha</th><th className="n">Xarajat</th><th className="n">Natija</th><th className="n">Natija narxi</th><th className="n">Ko'rsatuv</th><th className="n">Bosish</th><th></th></tr></thead>
-      <tbody>{rows.map(({ p, cur: c, prev: pv, err }) => <tr key={p.id}>
-        <td><div className="pn"><Av name={p.name} /><span><b>{p.name}</b><small>{err ? <span className="r">{err.slice(0, 60)}</span> : p.ad_account_id || 'Reklama kabineti ulanmagan'}</small></span></div></td>
-        <td className="n">{c ? money(c.spend) : '—'}</td><td className="n">{c ? num(c.results) : '—'}</td>
-        <td className="n">{c && c.results ? <>{money(c.spend / c.results)}{delta(c.spend / c.results, pv?.results ? pv.spend / pv.results : 0)}</> : '—'}</td>
-        <td className="n">{c ? num(c.impressions) : '—'}</td><td className="n">{c ? num(c.clicks) : '—'}</td>
-        <td style={{ textAlign: 'right' }}><Link className="btn sm" href={`/p/${p.id}`}>Ochish</Link></td></tr>)}</tbody></table>
-      <div className="note">Natija narxi yonidagi belgi avvalgi davrga nisbatan: <span className="g">▼ arzonlashdi</span> · <span className="r">▲ qimmatlashdi</span></div></>
-      : <p className="empty">Target loyiha yo'q. «Yangi loyiha» → Target.</p>}</div>
-    <h2 className="h2">Kontent loyihalar <small className="mut">· Instagram postlari va avtojavob</small></h2>
-    <div className="card tbl">{content.length ? <table><thead><tr><th>Loyiha</th><th className="n">Navbatda</th><th className="n">Davrda chiqdi</th><th className="n">Avtojavob qoidalari</th><th className="n">Direct yuborildi</th><th></th></tr></thead>
-      <tbody>{content.map(p => { const rs = (rules || []).filter(x => x.project_id === p.id); return <tr key={p.id}>
-        <td><div className="pn"><Av name={p.name} /><span><b>{p.name}</b><small>{p.ig_username ? '@' + p.ig_username : p.ig_user_id ? 'Instagram ulangan' : 'Instagram ulanmagan'}</small></span></div></td>
-        <td className="n">{queued(p.id)}</td><td className="n">{pubIn(p.id)}</td><td className="n">{rs.filter(x => x.active).length} / {rs.length}</td><td className="n">{rs.reduce((s, x) => s + x.sent, 0)}</td>
-        <td style={{ textAlign: 'right' }}><Link className="btn sm" href={`/p/${p.id}/instagram`}>Ochish</Link></td></tr>; })}</tbody></table>
-      : <p className="empty">Kontent loyiha yo'q.</p>}</div>
-    <h2 className="h2">Ulash mumkin bo'lgan dasturlar</h2>
-    <div className="ints">{ints.map(x => <div key={x.n} className="int"><span className="ic" style={{ background: x.c }}><I n={x.ic} s={22} /></span>
-      <div><b>{x.n}</b><p>{x.d}</p></div>{x.href && !x.ok ? <Link href={x.href} className="badge w">{x.s}</Link> : <span className={'badge' + (x.ok ? ' g' : '')}>{x.s}</span>}</div>)}</div>
+    {le && <p className="note note-bad" role="alert">Bazaga ulanib bo'lmadi: {le.message}</p>}<Flash sp={sp} />
+    <div className="head"><div><h1>Umumiy ko'rinish</h1><p>{r.since} dan {r.until} gacha, {r.len} kun. Har bir son avvalgi {r.len} kun bilan solishtiriladi.</p></div>
+      <Link className="btn btn-p" href="/accounts">Akkaunt ulash</Link></div>
+    <Range r={r} presets={[['today', 'Bugun'], ['yest', 'Kecha'], ['7', '7 kun'], ['30', '30 kun'], ['90', '90 kun']]} />
+
+    <section className="sec" aria-labelledby="q-h">
+      <div className="sec-h"><h2 id="q-h">Navbat</h2><p>{queue.length ? `${queue.length} ta post kutmoqda, har 5 daqiqada tekshiriladi` : ''}</p></div>
+      {queue.length ? <ol className="trail">{queue.slice(0, 8).map(x => <li key={x.id}><span className="when">{dt(x.scheduled_at)}</span><span className="acct">{handle(byId[x.project_id])}</span><span className="what">{x.caption || 'Matnsiz post'}</span>
+        <Link className="btn btn-q btn-s" href={`/p/${x.project_id}/instagram`}>Ochish</Link></li>)}</ol>
+        : <div className="empty"><b>Navbat bo'sh</b><p>Rejalashtirilgan postlar shu yerda, hamma akkauntlardan vaqt bo'yicha bitta qatorda turadi.</p>
+          {igs[0] ? <Link className="btn" href={`/p/${igs[0].id}/instagram`}>Post rejalashtirish</Link> : <Link className="btn" href="/accounts">Avval akkaunt ulang</Link>}</div>}
+    </section>
+
+    <dl className="readings">
+      <Reading label="Ulangan akkauntlar" v={num(projects.filter(p => p.ig_user_id).length)} sub={`${projects.length} ta loyihadan`} />
+      <Reading label="Davrda chiqqan postlar" v={num(pubIn())} />
+      <Reading label="Avtojavob Direct'lari" v={num(sent)} sub="jami yuborilgan" />
+      {targets.length > 0 && <Reading label="Reklama xarajati" v={money(cur.spend)} cur={cur.spend} prev={prev.spend} f={money} good="none" />}
+      {targets.length > 0 && <Reading label="Bitta natija narxi" v={cpr ? money(cpr) : 'yo\'q'} cur={cpr} prev={ppr} f={money} good="down" />}
+    </dl>
+
+    <section className="sec" aria-labelledby="a-h">
+      <div className="sec-h"><h2 id="a-h">Instagram akkauntlar</h2></div>
+      {igs.length ? <div className="scroll"><table className="tbl stack"><thead><tr><th>Akkaunt</th><th className="r">Navbatda</th><th className="r">Davrda chiqdi</th><th className="r">Avtojavob</th><th className="r">Direct yuborildi</th><th>Telegram</th><th><span className="visually-hidden">Amal</span></th></tr></thead>
+        <tbody>{igs.map(p => { const rs = (rules || []).filter(x => x.project_id === p.id); return <tr key={p.id}>
+          <td><div className="who-cell"><Av name={p.ig_username || p.name} /><span><b>{handle(p)}</b><small>{p.ig_user_id ? p.name : 'Instagram ulanmagan'}</small></span></div></td>
+          <td className="r m" data-label="Navbatda">{qOf(p.id)}</td><td className="r m" data-label="Chiqdi">{pubIn(p.id)}</td>
+          <td className="r m" data-label="Avtojavob">{rs.filter(x => x.active).length}/{rs.length}</td><td className="r m" data-label="Direct">{rs.reduce((s, x) => s + x.sent, 0)}</td>
+          <td>{p.tg_chat_id ? <span className="chip chip-ok">ulangan</span> : <span className="chip">yo'q</span>}</td>
+          <td className="r"><Link className="btn btn-s" href={projHome(p)}>Ochish</Link></td></tr>; })}</tbody></table></div>
+        : <div className="empty"><b>Hali akkaunt yo'q</b><p>Meta tokendagi Instagram akkauntlar ro'yxatidan kerakligini bir bosishda ulaysiz.</p><Link className="btn" href="/accounts">Akkauntlarni ko'rish</Link></div>}
+    </section>
+
+    <section className="sec" aria-labelledby="ads-h">
+      <div className="sec-h"><h2 id="ads-h">Reklama</h2></div>
+      {targets.length > 0 && <div className="scroll"><table className="tbl stack"><thead><tr><th>Loyiha</th><th className="r">Xarajat</th><th className="r">Natija</th><th className="r">Natija narxi</th><th className="r">Ko'rsatuv</th><th className="r">Bosish</th><th><span className="visually-hidden">Amal</span></th></tr></thead>
+        <tbody>{rows.map(({ p, cur: c, prev: pv, err }) => { const cp = c?.results ? c.spend / c.results : 0, pp = pv?.results ? pv.spend / pv.results : 0; return <tr key={p.id}>
+          <td><div className="who-cell"><Av name={p.name} /><span><b>{p.name}</b><small>{err ? <span className="bad">{err.slice(0, 70)}</span> : p.ad_account_id || 'Kabinet tanlanmagan'}</small></span></div></td>
+          <td className="r m" data-label="Xarajat">{c ? money(c.spend) : 'yo\'q'}</td><td className="r m" data-label="Natija">{c ? num(c.results) : 'yo\'q'}</td>
+          <td className="r m" data-label="Narx">{cp ? money(cp) : 'yo\'q'}{cp && pp ? <span className={cp <= pp ? 'ok' : 'bad'}> {cp <= pp ? '−' : '+'}{Math.abs(Math.round(((cp - pp) / pp) * 100))}%</span> : null}</td>
+          <td className="r m" data-label="Ko'rsatuv">{c ? num(c.impressions) : 'yo\'q'}</td><td className="r m" data-label="Bosish">{c ? num(c.clicks) : 'yo\'q'}</td>
+          <td className="r"><Link className="btn btn-s" href={`/p/${p.id}`}>Ochish</Link></td></tr>; })}</tbody></table>
+        <p className="tbl-foot">Natija narxi yonidagi foiz avvalgi davrga nisbatan: yashil arzonlashganini, qizil qimmatlashganini bildiradi.</p></div>}
+      {!hasToken && <p className="note">Reklama raqamlari Meta token kiritilgach chiqadi. <Link href="/settings">Sozlamalar</Link></p>}
+      <details className="disc"><summary className="btn">Reklama loyihasi qo'shish</summary>
+        <form action={add} className="panel form" style={{ maxWidth: '32rem' }}><label className="field"><span>Loyiha nomi</span><input name="name" required autoComplete="off" placeholder="Weldmart reklama" /><span className="help">Keyingi qadamda reklama kabinetini tanlaysiz.</span></label>
+          <div><button type="submit" className="btn btn-p">Yaratish</button></div></form></details>
+    </section>
   </Shell>);
 }

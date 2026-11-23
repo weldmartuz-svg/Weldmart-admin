@@ -1,10 +1,9 @@
-import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
-import { db, requireAuth, tg, dec } from '@/lib/s';
-import { dt, q } from '@/lib/ui';
+import { db, requireAuth, tg, tgToken } from '@/lib/s';
+import { dt, q, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
-import { ProjectBar, Flash } from '@/components/Bits';
+import { Conn, Flash } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 const F: [string, string][] = [['all', 'Hammasi'], ['comment', 'Kommentlar'], ['message', 'Direct']];
 export default async function Inbox({ params, searchParams }: any) {
@@ -14,20 +13,22 @@ export default async function Inbox({ params, searchParams }: any) {
   if (!p) notFound();
   let qb = db().from('ig_events').select('id,kind,from_name,body,created_at').eq('project_id', id).order('created_at', { ascending: false }).limit(100);
   if (f !== 'all') qb = qb.eq('kind', f);
-  const { data: evs } = await qb;
+  const { data: evs, error } = await qb;
   const path = `/p/${id}/inbox`;
   async function send(fd: FormData) {
     'use server'; await requireAuth();
-    let m = '?ok=' + q('Telegramga yuborildi');
-    try { if (!p!.tg_bot_token || !p!.tg_chat_id) throw new Error('Telegram bot va chat ID sozlanmagan'); await tg(dec(p!.tg_bot_token), p!.tg_chat_id, String(fd.get('text') || '')); } catch (e: any) { m = '?err=' + q(e.message); }
+    let m = '?ok=' + q('Telegramga yuborildi.');
+    try { if (!p!.tg_chat_id) throw new Error('Loyiha Telegram chatga ulanmagan. Sozlamalardan ulang.'); const t = await tgToken(p); if (!t) throw new Error('Telegram bot sozlanmagan.'); await tg(t, p!.tg_chat_id, String(fd.get('text') || '')); } catch (e: any) { m = '?err=' + q(e.message); }
     revalidatePath(path); redirect(path + m);
   }
-  return (<Shell project={p} active="inbox" crumbs={[{ label: p.name, href: `/p/${id}` }, { label: 'Xabarlar' }]}>
-    <ProjectBar p={p} /><Flash sp={sp} />
-    <div><h1>Xabarlar</h1><p className="m">Instagram komment va Direct'lari (webhook orqali real vaqtda). Har yangisi Telegram chatga ham boradi.</p></div>
-    <div className="tabs">{F.map(([k, l]) => <Link key={k} href={`?f=${k}`} className={'btn sm' + (f === k ? ' on' : '')}>{l}</Link>)}</div>
-    <div className="card tbl">{evs?.length ? evs.map(e => <div key={e.id} className="evr"><span className="row"><span className={'badge ' + (e.kind === 'message' ? 'a' : '')}>{e.kind === 'message' ? 'Direct' : e.kind === 'comment' ? 'Komment' : e.kind}</span><b>{e.from_name || '—'}</b><small>{dt(e.created_at)}</small></span><div>{e.body}</div></div>)
-      : <p className="empty">Hozircha xabar yo'q. Meta webhook ulangach shu yerda paydo bo'ladi.</p>}</div>
-    <form action={send} className="card form"><h3>Telegram chatga xabar yuborish</h3><textarea name="text" rows={3} required placeholder="Xabar matni" /><div><button className="btn p">Yuborish</button></div></form>
+  return (<Shell project={p} active="inbox" crumbs={[{ label: handle(p), href: `/p/${id}/instagram` }, { label: 'Xabarlar' }]}>
+    <Flash sp={sp} />
+    <div className="head"><div><h1>{handle(p)}: xabarlar</h1><p>Komment va Direct'lar Meta webhook orqali real vaqtda keladi, har biri Telegram chatga ham yuboriladi.</p></div><Conn p={p} /></div>
+    <nav className="seg" aria-label="Turi">{F.map(([k, l]) => <a key={k} href={`?f=${k}`} {...(f === k ? { 'aria-current': 'true' } : {})}>{l}</a>)}</nav>
+    {error ? <p className="note note-bad">Xabarlarni o'qib bo'lmadi: {error.message}</p>
+      : evs?.length ? <div className="scroll"><table className="tbl stack"><thead><tr><th>Vaqt</th><th>Turi</th><th>Kimdan</th><th>Matn</th></tr></thead>
+        <tbody>{evs.map(e => <tr key={e.id}><td className="m cool">{dt(e.created_at)}</td><td><span className={'chip ' + (e.kind === 'message' ? 'chip-acc' : '')}>{e.kind === 'message' ? 'Direct' : 'komment'}</span></td><td className="amber">{e.from_name || 'yo\'q'}</td><td style={{ minWidth: '18rem' }}>{e.body}</td></tr>)}</tbody></table></div>
+        : <div className="empty"><b>Hozircha xabar yo'q</b><p>Meta webhook ulangach, shu akkauntga yozilgan har bir komment va Direct shu yerda paydo bo'ladi.</p></div>}
+    <form action={send} className="panel form"><h2>Telegram chatga xabar</h2><label className="field"><span>Matn</span><textarea name="text" rows={3} required /><span className="help">{p.tg_chat_id ? 'Loyihaning ulangan chatiga boradi.' : 'Avval loyihani Telegram chatga ulang.'}</span></label><div><button type="submit" className="btn">Yuborish</button></div></form>
   </Shell>);
 }

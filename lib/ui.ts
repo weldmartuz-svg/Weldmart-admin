@@ -16,7 +16,7 @@ export function range(sp: any, def = '30') {
 }
 export const money = (v: number) => (v >= 1000 ? '$' + Math.round(v).toLocaleString('en-US') : '$' + (Math.round(v * 100) / 100).toFixed(v >= 100 ? 0 : 2));
 export const num = (v: number) => Math.round(v || 0).toLocaleString('ru-RU');
-export const dt = (d?: string | null) => d ? new Date(d).toLocaleString('ru-RU', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '') : '—';
+export const dt = (d?: string | null) => d ? new Date(d).toLocaleString('ru-RU', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '') : 'yo\'q';
 export const hm = (d: string) => new Date(d).toLocaleTimeString('ru-RU', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-export const avatarColor = (s: string) => { let h = 0; for (const c of s || '') h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h} 52% 46%)`; };
 export const q = (s: string) => encodeURIComponent(s);
+export const handle = (p: any) => (p?.ig_username ? '@' + p.ig_username : p?.name || '');

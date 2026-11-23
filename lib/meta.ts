@@ -14,7 +14,7 @@ export async function campaigns(act: string, since: string, until: string) {
   return (r.data || []).map((x: any) => ({ id: x.campaign_id, name: x.campaign_name, spend: +x.spend || 0, impressions: +x.impressions || 0, clicks: +x.clicks || 0, results: results(x.actions) }));
 }
 export function grade(c: any, avgCpl: number) {
-  if (!c.results) return c.spend > avgCpl * 2 && avgCpl > 0 ? { t: 'Yomon', cls: 'r', tip: "Natija yo'q — kreativ yoki auditoriyani almashtiring" } : { t: 'Kuting', cls: '', tip: "Ma'lumot hali kam" };
+  if (!c.results) return c.spend > avgCpl * 2 && avgCpl > 0 ? { t: 'Yomon', cls: 'r', tip: "Natija yo'q: kreativ yoki auditoriyani almashtiring" } : { t: 'Kuting', cls: '', tip: "Ma'lumot hali kam" };
   const cpl = c.spend / c.results;
   if (!avgCpl || cpl <= avgCpl * 0.9) return { t: 'Yaxshi', cls: 'g', tip: 'Davom ettiring, byudjetni asta oshiring' };
   if (cpl <= avgCpl * 1.25) return { t: "O'rtacha", cls: 'w', tip: "Kuzating, kreativni sinab ko'ring" };

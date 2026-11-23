@@ -1,12 +1,20 @@
-import { db, graph } from './s';
+import { db, graph, notify } from './s';
 export async function publishPost(p: any) {
-  const { data: pr } = await db().from('projects').select('ig_user_id').eq('id', p.project_id).single();
+  const { data: pr } = await db().from('projects').select('id,name,ig_user_id,ig_username,tg_bot_token,tg_chat_id').eq('id', p.project_id).single();
+  const who = pr?.ig_username ? '@' + pr.ig_username : pr?.name;
   try {
-    if (!pr?.ig_user_id) throw new Error("Instagram User ID kiritilmagan");
+    if (!pr?.ig_user_id) throw new Error('Instagram akkaunt ulanmagan');
     const c = await graph(`${pr.ig_user_id}/media`, { image_url: p.media_url, caption: p.caption || '' }, true);
     const m = await graph(`${pr.ig_user_id}/media_publish`, { creation_id: c.id }, true);
     await db().from('ig_posts').update({ status: 'published', ig_media_id: m.id, error: null }).eq('id', p.id);
-  } catch (e: any) { await db().from('ig_posts').update({ status: 'failed', error: String(e.message || e) }).eq('id', p.id); }
+    await notify(pr, `📤 ${who}: post chiqdi\n${(p.caption || '').slice(0, 200)}`);
+    return true;
+  } catch (e: any) {
+    const msg = String(e.message || e);
+    await db().from('ig_posts').update({ status: 'failed', error: msg }).eq('id', p.id);
+    await notify(pr, `⚠️ ${who}: post chiqmadi\n${msg}`);
+    return false;
+  }
 }
 const norm = (s: string) => s.toLowerCase().normalize('NFKC');
 export async function runRule(r: any) {

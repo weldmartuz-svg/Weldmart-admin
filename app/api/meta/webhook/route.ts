@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { db, secret, dec, tg } from '@/lib/s';
+import { db, secret, notify } from '@/lib/s';
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams, v = await secret('META_VERIFY_TOKEN');
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     for (const m of en.messaging || []) if (m.message && !m.message.is_echo) items.push({ kind: 'message', from: m.sender?.id, text: m.message.text });
     for (const i of items) {
       await db().from('ig_events').insert({ project_id: p?.id || null, kind: i.kind, from_name: i.from, body: i.text, raw: en });
-      if (p?.tg_bot_token && p.tg_chat_id) { try { await tg(dec(p.tg_bot_token), p.tg_chat_id, `📩 ${p.name} · ${i.kind}\n${i.from || ''}: ${i.text || ''}`); } catch {} }
+      if (p) await notify(p, `${i.kind === 'comment' ? '💬 Komment' : '✉️ Direct'} · ${p.ig_username ? '@' + p.ig_username : p.name}\n${i.from || ''}: ${i.text || ''}`);
     }
   }
   return new Response('ok');

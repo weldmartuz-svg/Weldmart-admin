@@ -25,6 +25,16 @@ export async function graph(path: string, p: Record<string, string> = {}, post =
   const r = await fetch(post ? url : url + '?' + body, post ? { method: 'POST', body } : {});
   const j = await r.json(); if (j.error) throw new Error(j.error.message); return j;
 }
+export async function tgToken(p?: any) { return dec(p?.tg_bot_token) || (await secret('TELEGRAM_BOT_TOKEN')); }
+export async function notify(p: any, text: string) {
+  if (!p?.tg_chat_id) return;
+  const t = await tgToken(p); if (!t) return;
+  try { await tg(t, p.tg_chat_id, text); } catch {}
+}
+export async function tgApi(token: string, method: string, body: any = {}) {
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json(); if (!j.ok) throw new Error('Telegram: ' + (j.description || r.status)); return j.result;
+}
 export async function tg(token: string, chat: string, text: string) {
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text }) });
   if (!r.ok) throw new Error('Telegram: ' + (await r.text()));
