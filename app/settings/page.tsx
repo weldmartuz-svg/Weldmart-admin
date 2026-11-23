@@ -18,6 +18,15 @@ export default async function S({ searchParams }: any) {
   if (has.has('META_TOKEN')) { try { me = (await graph('me', { fields: 'id,name' })).name; } catch (e: any) { meErr = e.message; } }
   let verify = await secret('META_VERIFY_TOKEN');
   if (!verify) { verify = 'weldmart-' + crypto.randomBytes(8).toString('hex'); await setSecret('META_VERIFY_TOKEN', verify); }
+  let claudeOk = false, claudeErr = '';
+  if (has.has('ANTHROPIC_API_KEY')) { try { const k = await secret('ANTHROPIC_API_KEY'); const r = await fetch('https://api.anthropic.com/v1/models?limit=1', { headers: { 'x-api-key': k, 'anthropic-version': '2026-10-21' }, next: { revalidate: 300 } } as any); if (r.ok) claudeOk = true; else claudeErr = 'Kalit ishlamadi: ' + ((await r.json().catch(() => ({})))?.error?.message || r.status); } catch (e: any) { claudeErr = e.message; } }
+  async function saveClaude(fd: FormData) {
+    'use server'; await requireAuth();
+    const k = String(fd.get('ANTHROPIC_API_KEY') || '').trim();
+    const r = await fetch('https://api.anthropic.com/v1/models?limit=1', { headers: { 'x-api-key': k, 'anthropic-version': '2026-10-21' }, cache: 'no-store' });
+    if (!r.ok) redirect('/settings?err=' + encodeURIComponent('Claude kaliti ishlamadi: ' + ((await r.json().catch(() => ({})))?.error?.message || r.status)));
+    await setSecret('ANTHROPIC_API_KEY', k); revalidatePath('/settings'); redirect('/settings?ok=' + encodeURIComponent('Claude ulandi.'));
+  }
   async function saveToken(fd: FormData) { 'use server'; await requireAuth(); await setSecret('META_TOKEN', String(fd.get('META_TOKEN') || '').trim()); revalidatePath('/', 'layout'); redirect('/settings?ok=1'); }
   async function saveSecret(fd: FormData) { 'use server'; await requireAuth(); await setSecret('META_APP_SECRET', String(fd.get('META_APP_SECRET') || '').trim()); revalidatePath('/settings'); redirect('/settings?ok=1'); }
   return (<Shell active="set" crumbs={[{ label: 'Sozlamalar' }]}>
@@ -43,6 +52,13 @@ export default async function S({ searchParams }: any) {
         <form action={saveSecret} className="form" autoComplete="off"><label className="field"><span>App secret{has.has('META_APP_SECRET') ? ' (saqlangan)' : ''}</span><input name="META_APP_SECRET" type="text" className="masked" required {...nofill} /><span className="help" /></label>
           <div><button type="submit" className="btn">Saqlash</button></div></form>
       </section></details>
+
+    <form action={saveClaude} className="panel form" autoComplete="off"><div className="sec-h"><h2>Claude</h2>
+      {claudeOk ? <span className="chip chip-ok">ishlayapti</span> : claudeErr ? <span className="chip chip-bad">xato</span> : <span className="chip">kiritilmagan</span>}</div>
+      {claudeErr && <p className="note note-bad">{claudeErr}</p>}
+      <p className="muted">Telegram kanallarga avtomatik post yozish uchun. Kalitni platform.claude.com → Settings → API keys → Create key orqali oling. Hisobda balans (Billing → Add credits) bo'lishi kerak.</p>
+      <label className="field"><span>API kalit{has.has('ANTHROPIC_API_KEY') ? ' (saqlangan)' : ''}</span><input name="ANTHROPIC_API_KEY" type="text" className="masked" required placeholder={has.has('ANTHROPIC_API_KEY') ? 'Almashtirish uchun yangisini kiriting' : 'sk-ant-...'} {...nofill} /><span className="help">Saqlashda kalit tekshiriladi.</span></label>
+      <div><button type="submit" className="btn">Saqlash</button></div></form>
 
     <section className="panel"><div className="sec-h"><h2>Telegram botlar</h2></div><p className="muted">Botlar endi alohida bo'limda: har biri o'z tabida, statistikasi, chatlari va xabar yuborish bilan.</p><div><Link className="btn" href="/telegram">Telegram bo'limiga o'tish</Link></div></section>
   </Shell>);

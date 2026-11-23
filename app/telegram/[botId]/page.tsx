@@ -7,9 +7,10 @@ import { dt, num, q, range, addDays, dayOf, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
 import { BotTabs } from '@/components/Tabs';
 import { Flash, Reading, Range, Confirm } from '@/components/Bits';
+import Autopost from '@/components/Autopost';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
-const TABS: [string, string][] = [['stat', 'Statistika'], ['inbox', 'Xabarlar'], ['chats', 'Chatlar'], ['send', 'Yuborish'], ['settings', 'Sozlamalar']];
+const TABS: [string, string][] = [['stat', 'Statistika'], ['auto', 'Avtopost'], ['inbox', 'Xabarlar'], ['chats', 'Chatlar'], ['send', 'Yuborish'], ['settings', 'Sozlamalar']];
 const who = (c: any) => c ? (c.title || [c.first_name, c.username ? '@' + c.username : ''].filter(Boolean).join(' ') || c.chat_id) : '';
 const TYPE: Record<string, string> = { private: 'foydalanuvchi', group: 'guruh', supergroup: 'guruh', channel: 'kanal' };
 export default async function Bot({ params, searchParams }: any) {
@@ -92,6 +93,8 @@ export default async function Bot({ params, searchParams }: any) {
           <tbody>{days.map(d => { const a = per(d, 'in'), b = per(d, 'out'); return <tr key={d}><td className="m cool">{d.slice(8)}.{d.slice(5, 7)}</td><td className="r m">{nw(d)}</td><td className="r m">{a}</td><td className="r m">{b}</td>
             <td><div className="days"><span className="bar-in" style={{ width: `${(a / mx) * 100}%` }} /><span className="bar-out" style={{ width: `${(b / mx) * 100}%` }} /></div></td></tr>; })}</tbody></table></div></section>
     </>;
+  } else if (tab === 'auto') {
+    body = <Autopost botId={botId} chats={C} sp={sp} />;
   } else if (tab === 'inbox') {
     const { data: msgs } = await db().from('telegram_messages').select('*').eq('bot_id', botId).order('created_at', { ascending: false }).limit(150);
     const M = msgs || [];
