@@ -4,6 +4,8 @@ import { db, requireAuth, graph } from '@/lib/s';
 import { range, money, num } from '@/lib/ui';
 import { accountStats, campaigns, grade } from '@/lib/meta';
 import Shell from '@/components/Shell';
+import { AcctTabs } from '@/components/Tabs';
+
 import { Reading, Range, Conn } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -29,8 +31,9 @@ export default async function P({ params, searchParams }: any) {
   const qs = (s: string) => `?${new URLSearchParams({ ...(sp?.d ? { d: sp.d } : {}), ...(sp?.from ? { from: sp.from, to: sp.to } : {}), s, o: sort === s && dir === -1 ? 'asc' : 'desc' })}`;
   const H = ({ k, l }: any) => <th className="r" aria-sort={sort === k ? (dir === -1 ? 'descending' : 'ascending') : 'none'}><a href={qs(k)}>{l}{sort === k ? (dir === -1 ? ' ↓' : ' ↑') : ''}</a></th>;
   const ctr = (c: any) => (c.impressions ? ((c.clicks / c.impressions) * 100).toFixed(2) + '%' : 'yo\'q');
-  return (<Shell project={p} active="stat" crumbs={[{ label: p.name, href: `/p/${id}` }, { label: 'Reklama' }]}>
-    <div className="head"><div><h1>{p.name}: reklama</h1><p>{r.since} dan {r.until} gacha, avvalgi shuncha kun bilan solishtirilgan.</p></div><Conn p={p} /></div>
+  return (<Shell project={p} active="ads" crumbs={[{ label: 'Meta Ads Manager', href: '/ads' }, { label: p.name }]}>
+    <AcctTabs p={p} sub="" kind="ad" />
+    <div className="head"><div><h1>{p.name}</h1><p>{r.since} dan {r.until} gacha, avvalgi shuncha kun bilan solishtirilgan.</p></div><Conn p={p} /></div>
     <Range r={r} presets={[['today', 'Bugun'], ['yest', 'Kecha'], ['7', '7 kun'], ['14', '14 kun'], ['30', '30 kun'], ['90', '90 kun'], ['mtd', 'Shu oy']]} />
     {!p.ad_account_id ? <div className="empty"><b>Reklama kabineti tanlanmagan</b><p>Kabinetni ulang: xarajat, natijalar va kampaniyalar shu yerda chiqadi.</p><Link className="btn btn-p" href={`/p/${id}/settings`}>Kabinetni tanlash</Link></div>
       : err ? <div className="empty"><b>Meta ma'lumot bermadi</b><p className="bad">{err}</p><p>Token yoki kabinetga ruxsatni tekshiring.</p><Link className="btn" href="/settings">Sozlamalar</Link></div> : <>

@@ -4,6 +4,8 @@ import { db, requireAuth, graph } from '@/lib/s';
 import { runRule } from '@/lib/ig';
 import { dt, q, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
+import { AcctTabs } from '@/components/Tabs';
+
 import { Conn, Flash, Confirm } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -40,8 +42,8 @@ export default async function Ar({ params, searchParams }: any) {
     }
     revalidatePath(path); redirect(path + msg);
   }
-  return (<Shell project={p} active="ar" crumbs={[{ label: handle(p), href: `/p/${id}/instagram` }, { label: 'Avtojavob' }]}>
-    <Flash sp={sp} />
+  return (<Shell project={p} active="ig" crumbs={[{ label: 'Instagram', href: '/instagram' }, { label: handle(p), href: `/p/${id}/instagram` }, { label: 'Avtojavob' }]}>
+    <AcctTabs p={p} sub="autoreply" kind="ig" /><Flash sp={sp} />
     <div className="head"><div><h1>{handle(p)}: avtojavob</h1><p>Postga kalit so'z bilan komment yozilsa, o'sha odamga Direct'da xabar boradi. Har 5 daqiqada tekshiriladi.</p></div><Conn p={p} /></div>
     <details className="disc" open={!(rules || []).length}><summary className="btn">Yangi qoida</summary>
       <form action={add} className="panel form">

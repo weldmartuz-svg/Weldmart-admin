@@ -1,8 +1,11 @@
 import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
-import { db, requireAuth, tg, tgToken } from '@/lib/s';
+import { db, requireAuth, tg } from '@/lib/s';
+import { botFor, botSend } from '@/lib/tg';
 import { dt, q, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
+import { AcctTabs } from '@/components/Tabs';
+
 import { Conn, Flash } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 const F: [string, string][] = [['all', 'Hammasi'], ['comment', 'Kommentlar'], ['message', 'Direct']];
@@ -18,11 +21,11 @@ export default async function Inbox({ params, searchParams }: any) {
   async function send(fd: FormData) {
     'use server'; await requireAuth();
     let m = '?ok=' + q('Telegramga yuborildi.');
-    try { if (!p!.tg_chat_id) throw new Error('Loyiha Telegram chatga ulanmagan. Sozlamalardan ulang.'); const t = await tgToken(p); if (!t) throw new Error('Telegram bot sozlanmagan.'); await tg(t, p!.tg_chat_id, String(fd.get('text') || '')); } catch (e: any) { m = '?err=' + q(e.message); }
+    try { if (!p!.tg_chat_id) throw new Error('Loyiha Telegram chatga ulanmagan. Sozlamalardan ulang.'); const bb: any = await botFor(p); if (!bb) throw new Error('Telegram bot sozlanmagan.'); const txt = String(fd.get('text') || ''); if (bb.id) await botSend(bb, p!.tg_chat_id, txt); else await tg(bb.tok, p!.tg_chat_id, txt); } catch (e: any) { m = '?err=' + q(e.message); }
     revalidatePath(path); redirect(path + m);
   }
-  return (<Shell project={p} active="inbox" crumbs={[{ label: handle(p), href: `/p/${id}/instagram` }, { label: 'Xabarlar' }]}>
-    <Flash sp={sp} />
+  return (<Shell project={p} active="ig" crumbs={[{ label: 'Instagram', href: '/instagram' }, { label: handle(p), href: `/p/${id}/instagram` }, { label: 'Xabarlar' }]}>
+    <AcctTabs p={p} sub="inbox" kind="ig" /><Flash sp={sp} />
     <div className="head"><div><h1>{handle(p)}: xabarlar</h1><p>Komment va Direct'lar Meta webhook orqali real vaqtda keladi, har biri Telegram chatga ham yuboriladi.</p></div><Conn p={p} /></div>
     <nav className="seg" aria-label="Turi">{F.map(([k, l]) => <a key={k} href={`?f=${k}`} {...(f === k ? { 'aria-current': 'true' } : {})}>{l}</a>)}</nav>
     {error ? <p className="note note-bad">Xabarlarni o'qib bo'lmadi: {error.message}</p>

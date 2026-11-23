@@ -22,6 +22,6 @@ export function Flash({ sp }: { sp: any }) {
   if (sp?.ok) return <p className="note note-ok" role="status">{sp.ok === '1' ? 'Saqlandi.' : sp.ok}</p>;
   return null;
 }
-export function Confirm({ label, children }: { label: string; children: any }) {
-  return <details className="confirm"><summary className="btn btn-s btn-bad">{label}</summary><span className="row">Rostdanmi? {children}</span></details>;
+export function Confirm({ label, children, tone = 'bad' }: { label: string; children: any; tone?: 'bad' | 'plain' }) {
+  return <details className="confirm"><summary className={'btn btn-s' + (tone === 'bad' ? ' btn-bad' : '')}>{label}</summary><span className="row">Rostdanmi? {children}</span></details>;
 }

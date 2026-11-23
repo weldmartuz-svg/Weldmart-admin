@@ -1,59 +1,49 @@
 import crypto from 'crypto';
+import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { db, requireAuth, setSecret, secret, graph, tgApi } from '@/lib/s';
-import { q } from '@/lib/ui';
+import { db, requireAuth, setSecret, secret, graph } from '@/lib/s';
 import Shell from '@/components/Shell';
 import { Flash } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 const BASE = 'https://weldmartadmin12.vercel.app';
-const K = [['META_TOKEN', 'System user token', "Business Manager → Users → System users → Generate new token."], ['META_APP_SECRET', 'App secret', 'Ilova sozlamalari → Basic. Webhook imzosini tekshiradi.'], ['META_VERIFY_TOKEN', 'Webhook verify token', "O'zingiz o'ylab topgan istalgan so'z, Meta'dagi bilan bir xil bo'lsin."]];
 const nofill = { autoComplete: 'off', 'data-1p-ignore': 'true', 'data-lpignore': 'true' } as any;
 export default async function S({ searchParams }: any) {
   await requireAuth();
   const sp = await searchParams;
   const { data } = await db().from('app_settings').select('key');
   const has = new Set((data || []).map(r => r.key));
-  let me = '', meErr = '', bot = '', hook: any = null, botErr = '';
-  if (has.has('META_TOKEN')) { try { const r = await graph('me', { fields: 'id,name' }); me = r.name; } catch (e: any) { meErr = e.message; } }
-  const bt = await secret('TELEGRAM_BOT_TOKEN');
-  if (bt) { try { bot = (await tgApi(bt, 'getMe')).username; hook = await tgApi(bt, 'getWebhookInfo'); } catch (e: any) { botErr = e.message; } }
-  async function saveMeta(fd: FormData) { 'use server'; await requireAuth(); for (const [k] of K) await setSecret(k, String(fd.get(k) || '').trim()); revalidatePath('/settings'); redirect('/settings?ok=1'); }
-  async function saveBot(fd: FormData) {
-    'use server'; await requireAuth();
-    const t = String(fd.get('bot') || '').trim() || (await secret('TELEGRAM_BOT_TOKEN'));
-    if (!/^\d+:[\w-]{30,}$/.test(t)) redirect('/settings?err=' + q("Bot token noto'g'ri ko'rinishda. @BotFather bergan to'liq tokenni kiriting (1234567890:AAH...)."));
-    const s = crypto.randomBytes(24).toString('hex');
-    let me: any;
-    try {
-      me = await tgApi(t, 'getMe');
-      await tgApi(t, 'setWebhook', { url: `${BASE}/api/telegram/webhook`, secret_token: s, allowed_updates: ['message', 'channel_post'], drop_pending_updates: true });
-      await tgApi(t, 'setMyCommands', { commands: [{ command: 'holat', description: 'Ulangan akkauntlar va navbat' }, { command: 'stop', description: 'Shu chatni uzish' }] });
-    } catch (e: any) { redirect('/settings?err=' + q(e.message)); }
-    await setSecret('TELEGRAM_BOT_TOKEN', t); await setSecret('TG_WEBHOOK_SECRET', s);
-    revalidatePath('/', 'layout'); redirect('/settings?ok=' + q(`@${me.username} ulandi. Endi har bir loyiha sozlamalaridan chatga ulang.`));
-  }
+  let me = '', meErr = '';
+  if (has.has('META_TOKEN')) { try { me = (await graph('me', { fields: 'id,name' })).name; } catch (e: any) { meErr = e.message; } }
+  let verify = await secret('META_VERIFY_TOKEN');
+  if (!verify) { verify = 'weldmart-' + crypto.randomBytes(8).toString('hex'); await setSecret('META_VERIFY_TOKEN', verify); }
+  async function saveToken(fd: FormData) { 'use server'; await requireAuth(); await setSecret('META_TOKEN', String(fd.get('META_TOKEN') || '').trim()); revalidatePath('/', 'layout'); redirect('/settings?ok=1'); }
+  async function saveSecret(fd: FormData) { 'use server'; await requireAuth(); await setSecret('META_APP_SECRET', String(fd.get('META_APP_SECRET') || '').trim()); revalidatePath('/settings'); redirect('/settings?ok=1'); }
   return (<Shell active="set" crumbs={[{ label: 'Sozlamalar' }]}>
     <Flash sp={sp} />
-    <div className="head"><div><h1>Sozlamalar</h1><p>Kalitlar bazada shifrlangan holda saqlanadi va brauzerga chiqmaydi. Bo'sh qoldirilgan maydon eski qiymatni o'zgartirmaydi.</p></div></div>
+    <div className="head"><div><h1>Sozlamalar</h1><p>Kalitlar bazada shifrlangan holda saqlanadi va brauzerga chiqmaydi.</p></div></div>
 
-    <form action={saveMeta} className="panel form" autoComplete="off"><div className="sec-h"><h2>Meta: Instagram va Facebook reklama</h2>
-      {me ? <span className="chip chip-ok">token ishlayapti: {me}</span> : meErr ? <span className="chip chip-bad">token xato</span> : <span className="chip">token yo'q</span>}</div>
+    <form action={saveToken} className="panel form" autoComplete="off"><div className="sec-h"><h2>Meta token</h2>
+      {me ? <span className="chip chip-ok">ishlayapti: {me}</span> : meErr ? <span className="chip chip-bad">xato</span> : <span className="chip">kiritilmagan</span>}</div>
       {meErr && <p className="note note-bad">{meErr}</p>}
-      {K.map(([k, t, h]) => <label key={k} className="field"><span>{t}{has.has(k) ? ' (saqlangan)' : ''}</span><input name={k} type="text" className="masked" placeholder={has.has(k) ? 'Almashtirish uchun yangisini kiriting' : ''} {...nofill} /><span className="help">{h}</span></label>)}
-      <p className="help">Kerakli ruxsatlar: instagram_basic, instagram_content_publish, instagram_manage_comments, instagram_manage_messages, pages_show_list, pages_read_engagement, ads_read, business_management. System userga sahifalar, Instagram akkauntlar va reklama kabinetlarini Assets bo'limida biriktiring.</p>
+      <p className="muted">Instagram postlar, avtojavob va Meta Ads Manager statistikasi uchun yagona kerakli kalit.</p>
+      <label className="field"><span>System user token{has.has('META_TOKEN') ? ' (saqlangan)' : ''}</span><input name="META_TOKEN" type="text" className="masked" required placeholder={has.has('META_TOKEN') ? 'Almashtirish uchun yangisini kiriting' : 'EAAG...'} {...nofill} /><span className="help">business.facebook.com → Sozlamalar → Foydalanuvchilar → System users → Generate new token.</span></label>
       <div><button type="submit" className="btn btn-p">Saqlash</button></div></form>
 
-    <form action={saveBot} className="panel form" autoComplete="off"><div className="sec-h"><h2>Telegram bot</h2>
-      {bot ? <span className="chip chip-ok">@{bot}</span> : botErr ? <span className="chip chip-bad">xato</span> : <span className="chip">ulanmagan</span>}</div>
-      {botErr && <p className="note note-bad">{botErr}</p>}
-      <p className="muted">Bitta bot hamma loyihalarga xizmat qiladi: yangi komment, Direct va post holatlari kerakli chat yoki guruhga boradi. @BotFather'da /newbot buyrug'i bilan bot yarating va tokenini shu yerga kiriting.</p>
-      <label className="field"><span>Bot token{bt ? ' (saqlangan)' : ''}</span><input name="bot" type="text" className="masked" placeholder={bt ? 'Almashtirish uchun yangisini kiriting' : '1234567890:AAH...'} {...nofill} /><span className="help">Saqlanganda webhook avtomatik o'rnatiladi.</span></label>
-      {hook && <dl className="readings"><div><dt>Webhook</dt><dd className="m cool" style={{ overflowWrap: 'anywhere' }}>{hook.url || "o'rnatilmagan"}</dd></div><div><dt>Kutilayotgan xabarlar</dt><dd className="reading">{hook.pending_update_count || 0}</dd></div>
-        {hook.last_error_message && <div><dt>Oxirgi xato</dt><dd className="bad">{hook.last_error_message}</dd></div>}</dl>}
-      <div><button type="submit" className="btn">{bt ? 'Qayta ulash' : 'Botni ulash'}</button></div></form>
+    <details className="disc"><summary className="btn">Real vaqtda komment va Direct (ixtiyoriy)</summary>
+      <section className="panel form">
+        <p className="muted">Bu sozlamasiz ham hammasi ishlaydi: avtojavob kommentlarni har 5 daqiqada o'zi tekshiradi. Agar kommentlar va Direct'lar «Xabarlar» bo'limiga va Telegram'ga darhol tushishini xohlasangiz, shu uch qadamni bajaring.</p>
+        <ol className="steps">
+          <li><b>App secret</b>ni oling: developers.facebook.com → My Apps → ilovangiz → App settings → Basic → «App secret» yonidagi Show. Pastdagi maydonga qo'ying.</li>
+          <li>O'sha ilovada Webhooks → Instagram → Subscribe. «Callback URL» va «Verify token» ga quyidagi ikki qatorni nusxalang.</li>
+          <li>Ro'yxatdan <span className="m">comments</span> va <span className="m">messages</span> ga obuna bo'ling.</li></ol>
+        <div className="grid2"><div className="field"><span>Callback URL</span><div className="code">{BASE}/api/meta/webhook</div></div>
+          <div className="field"><span>Verify token</span><div className="code">{verify}</div><span className="help">Avtomatik yaratildi, o'ylab topish shart emas.</span></div></div>
+        <form action={saveSecret} className="form" autoComplete="off"><label className="field"><span>App secret{has.has('META_APP_SECRET') ? ' (saqlangan)' : ''}</span><input name="META_APP_SECRET" type="text" className="masked" required {...nofill} /><span className="help" /></label>
+          <div><button type="submit" className="btn">Saqlash</button></div></form>
+      </section></details>
 
-    <section className="panel"><h2>Meta webhook</h2><p className="muted">Meta Developers → ilova → Webhooks → Instagram. Quyidagi manzil va verify token'ni kiriting, comments va messages maydonlariga obuna bo'ling.</p><div className="code">{BASE}/api/meta/webhook</div></section>
+    <section className="panel"><div className="sec-h"><h2>Telegram botlar</h2></div><p className="muted">Botlar endi alohida bo'limda: har biri o'z tabida, statistikasi, chatlari va xabar yuborish bilan.</p><div><Link className="btn" href="/telegram">Telegram bo'limiga o'tish</Link></div></section>
   </Shell>);
 }

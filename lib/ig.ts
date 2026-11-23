@@ -1,6 +1,6 @@
 import { db, graph, notify } from './s';
 export async function publishPost(p: any) {
-  const { data: pr } = await db().from('projects').select('id,name,ig_user_id,ig_username,tg_bot_token,tg_chat_id').eq('id', p.project_id).single();
+  const { data: pr } = await db().from('projects').select('id,name,ig_user_id,ig_username,tg_bot_token,tg_chat_id,tg_bot_id').eq('id', p.project_id).single();
   const who = pr?.ig_username ? '@' + pr.ig_username : pr?.name;
   try {
     if (!pr?.ig_user_id) throw new Error('Instagram akkaunt ulanmagan');

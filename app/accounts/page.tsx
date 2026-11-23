@@ -29,7 +29,7 @@ export default async function Accounts({ searchParams }: any) {
     revalidatePath('/', 'layout'); redirect('/accounts?ok=' + q(`${add.length} ta akkaunt ulandi.`));
   }
   const free = accs.filter(a => !linked.has(a.id));
-  return (<Shell active="acc" crumbs={[{ label: 'Akkauntlar' }]}>
+  return (<Shell active="ig" crumbs={[{ label: 'Instagram', href: '/instagram' }, { label: 'Akkaunt ulash' }]}>
     <Flash sp={sp} />
     <div className="head"><div><h1>Instagram akkauntlar</h1><p>Meta system user tokeniga biriktirilgan barcha Business va Creator akkauntlar. Ulangan har bir akkaunt panelda alohida loyiha bo'ladi.</p></div>
       {free.length > 1 && <form action={connect}>{free.map(a => <input key={a.id} type="hidden" name="ig" value={a.id} />)}<button type="submit" className="btn btn-p">Hammasini ulash ({free.length})</button></form>}</div>

@@ -1,9 +1,11 @@
 import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
-import { db, requireAuth, graph, secret, enc, tg, tgToken, tgApi } from '@/lib/s';
+import { db, requireAuth, graph, secret, enc, tg } from '@/lib/s';
 import { q, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
 import { Flash, Confirm } from '@/components/Bits';
+import { AcctTabs } from '@/components/Tabs';
+import { botFor, botSend } from '@/lib/tg';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 const nofill = { autoComplete: 'off', 'data-1p-ignore': 'true', 'data-lpignore': 'true' } as any;
@@ -19,8 +21,10 @@ export default async function PS({ params, searchParams }: any) {
     try { ads = (await graph('me/adaccounts', { fields: 'id,name', limit: '100' })).data || []; } catch (e: any) { merr ||= e.message; }
   }
   const igs = pages.filter(x => x.instagram_business_account);
-  const bt = await secret('TELEGRAM_BOT_TOKEN');
-  let botName = ''; if (bt) { try { botName = (await tgApi(bt, 'getMe')).username; } catch {} }
+  const { data: bots } = await db().from('telegram_bots').select('id,name,username').order('created_at');
+  const selBot = (bots || []).find(b => b.id === (sp?.bot || p.tg_bot_id)) || (bots || [])[0];
+  const botName = selBot?.username || '';
+  const isAd = p.kind === 'target' && !p.ig_user_id;
   const path = `/p/${id}/settings`;
   async function save(fd: FormData) {
     'use server'; await requireAuth();
@@ -49,7 +53,7 @@ export default async function PS({ params, searchParams }: any) {
     const { data: x } = await db().from('projects').select('*').eq('id', id).single();
     let m = '';
     if (op === 'unlink') { await db().from('projects').update({ tg_chat_id: null }).eq('id', id); m = '?ok=' + q('Telegram chat uzildi.'); }
-    if (op === 'test') { try { if (!x?.tg_chat_id) throw new Error("Avval chatga ulang."); const t = await tgToken(x); if (!t) throw new Error('Bot sozlanmagan.'); await tg(t, x.tg_chat_id, `✅ Sinov: «${x.name}» Weldmart Admin bilan ulangan.`); m = '?ok=' + q('Sinov xabari yuborildi.'); } catch (e: any) { m = '?err=' + q(e.message); } }
+    if (op === 'test') { try { if (!x?.tg_chat_id) throw new Error("Avval chatga ulang."); const bb: any = await botFor(x); if (!bb) throw new Error('Bot sozlanmagan.'); const txt = `✅ Sinov: «${x.name}» Weldmart Admin bilan ulangan.`; if (bb.id) await botSend(bb, x.tg_chat_id, txt); else await tg(bb.tok, x.tg_chat_id, txt); m = '?ok=' + q('Sinov xabari yuborildi.'); } catch (e: any) { m = '?err=' + q(e.message); } }
     if (op === 'relink') { await db().from('projects').update({ tg_link_code: Math.random().toString(36).slice(2, 14) }).eq('id', id); m = '?ok=' + q('Yangi havola yaratildi, eskisi endi ishlamaydi.'); }
     revalidatePath(path); redirect(path + m);
   }
@@ -59,21 +63,22 @@ export default async function PS({ params, searchParams }: any) {
     await db().from('projects').delete().eq('id', id); revalidatePath('/', 'layout'); redirect('/');
   }
   const igCur = igs.find(x => x.instagram_business_account.id === p.ig_user_id);
-  return (<Shell project={p} active="pset" crumbs={[{ label: handle(p), href: `/p/${id}/instagram` }, { label: 'Sozlamalar' }]}>
-    <Flash sp={sp} />
-    <div className="head"><div><h1>{handle(p)}: sozlamalar</h1><p>Instagram akkaunt, reklama kabineti va Telegram chat.</p></div></div>
+  return (<Shell project={p} active={isAd ? 'ads' : 'ig'} crumbs={[{ label: isAd ? 'Meta Ads Manager' : 'Instagram', href: isAd ? '/ads' : '/instagram' }, { label: isAd ? p.name : handle(p) }, { label: 'Sozlamalar' }]}>
+    <AcctTabs p={p} sub="settings" kind={isAd ? 'ad' : 'ig'} /><Flash sp={sp} />
+    <div className="head"><div><h1>{isAd ? p.name : handle(p)}: sozlamalar</h1><p>Instagram akkaunt, reklama kabineti va Telegram chat.</p></div></div>
     {!token && <p className="note">Meta token kiritilmagan, shuning uchun akkauntlar ro'yxati chiqmaydi. <a href="/settings">Sozlamalar</a> sahifasiga kiriting yoki ID larni qo'lda yozing.</p>}
     {merr && <p className="note note-bad">Meta: {merr}</p>}
 
     <section className="panel form"><div className="sec-h"><h2>Telegram</h2>{p.tg_chat_id ? <span className="chip chip-ok">ulangan</span> : <span className="chip">ulanmagan</span>}</div>
       {botName ? <>
-        <p className="muted">Bot orqali shu loyiha xabarlari keladigan chatni tanlang. Havolani bosing, Telegram ochiladi va bot chatni o'zi ulaydi.</p>
+        <p className="muted">Qaysi bot orqali va qaysi chatga xabar kelishini tanlang. Havolani bosing, Telegram ochiladi va bot chatni o'zi ulaydi.</p>
+        {(bots || []).length > 1 && <nav className="seg" aria-label="Bot">{bots!.map(b => <a key={b.id} href={`?bot=${b.id}`} {...(selBot?.id === b.id ? { 'aria-current': 'true' } : {})}>@{b.username || b.name}</a>)}</nav>}
         <div className="row"><a className="btn" href={`https://t.me/${botName}?start=${p.tg_link_code}`} target="_blank" rel="noopener">Shaxsiy chatga ulash</a>
           <a className="btn" href={`https://t.me/${botName}?startgroup=${p.tg_link_code}`} target="_blank" rel="noopener">Guruhga qo'shish</a></div>
-        {p.tg_chat_id && <p className="was">Ulangan chat ID <span className="m cool">{p.tg_chat_id}</span></p>}
+        {p.tg_chat_id && <p className="was">Ulangan chat ID <span className="m cool">{p.tg_chat_id}</span>{p.tg_bot_id && (bots || []).find(b => b.id === p.tg_bot_id) ? <> bot orqali <span className="amber">@{(bots || []).find(b => b.id === p.tg_bot_id)!.username}</span></> : null}</p>}
         <form action={tgAct} className="row">{p.tg_chat_id && <><button type="submit" className="btn btn-s" name="op" value="test">Sinov xabari</button><button type="submit" className="btn btn-s btn-q" name="op" value="unlink">Chatni uzish</button></>}
           <button type="submit" className="btn btn-s btn-q" name="op" value="relink">Yangi havola</button></form>
-      </> : <p className="note">Avval platforma botini ulang: <a href="/settings">Sozlamalar → Telegram bot</a>.</p>}
+      </> : <p className="note">Avval bot qo'shing: <a href="/telegram/new">Telegram → + Bot</a>.</p>}
     </section>
 
     <form action={save} className="form" autoComplete="off">

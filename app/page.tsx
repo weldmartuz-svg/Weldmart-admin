@@ -23,6 +23,8 @@ export default async function Home({ searchParams }: any) {
   const s0 = new Date(r.since + 'T00:00:00+05:00').toISOString(), s1 = new Date(r.until + 'T23:59:59+05:00').toISOString();
   const { data: posts } = await db().from('ig_posts').select('id,project_id,status,scheduled_at,created_at,caption');
   const { data: rules } = await db().from('autoreply_rules').select('project_id,active,sent');
+  const { data: tgc } = await db().from('telegram_chats').select('type,status');
+  const tgUsers = (tgc || []).filter(c => c.type === 'private' && c.status === 'active').length;
   const at = (x: any) => x.scheduled_at || x.created_at;
   const pubIn = (pid?: string) => (posts || []).filter(x => x.status === 'published' && at(x) >= s0 && at(x) <= s1 && (!pid || x.project_id === pid)).length;
   const queue = (posts || []).filter(x => x.status === 'scheduled').sort((a, b) => Date.parse(at(a)) - Date.parse(at(b)));
@@ -41,7 +43,7 @@ export default async function Home({ searchParams }: any) {
   return (<Shell active="home" crumbs={[{ label: 'Umumiy' }]}>
     {le && <p className="note note-bad" role="alert">Bazaga ulanib bo'lmadi: {le.message}</p>}<Flash sp={sp} />
     <div className="head"><div><h1>Umumiy ko'rinish</h1><p>{r.since} dan {r.until} gacha, {r.len} kun. Har bir son avvalgi {r.len} kun bilan solishtiriladi.</p></div>
-      <Link className="btn btn-p" href="/accounts">Akkaunt ulash</Link></div>
+      {igs[0] ? <Link className="btn btn-p" href={`/p/${igs[0].id}/instagram`}>Yangi post</Link> : <Link className="btn btn-p" href="/accounts">Instagram ulash</Link>}</div>
     <Range r={r} presets={[['today', 'Bugun'], ['yest', 'Kecha'], ['7', '7 kun'], ['30', '30 kun'], ['90', '90 kun']]} />
 
     <section className="sec" aria-labelledby="q-h">
@@ -56,6 +58,7 @@ export default async function Home({ searchParams }: any) {
       <Reading label="Ulangan akkauntlar" v={num(projects.filter(p => p.ig_user_id).length)} sub={`${projects.length} ta loyihadan`} />
       <Reading label="Davrda chiqqan postlar" v={num(pubIn())} />
       <Reading label="Avtojavob Direct'lari" v={num(sent)} sub="jami yuborilgan" />
+      <Reading label="Telegram foydalanuvchilar" v={num(tgUsers)} sub="barcha botlarda" />
       {targets.length > 0 && <Reading label="Reklama xarajati" v={money(cur.spend)} cur={cur.spend} prev={prev.spend} f={money} good="none" />}
       {targets.length > 0 && <Reading label="Bitta natija narxi" v={cpr ? money(cpr) : 'yo\'q'} cur={cpr} prev={ppr} f={money} good="down" />}
     </dl>
@@ -73,7 +76,7 @@ export default async function Home({ searchParams }: any) {
     </section>
 
     <section className="sec" aria-labelledby="ads-h">
-      <div className="sec-h"><h2 id="ads-h">Reklama</h2></div>
+      <div className="sec-h"><h2 id="ads-h">Meta Ads Manager</h2></div>
       {targets.length > 0 && <div className="scroll"><table className="tbl stack"><thead><tr><th>Loyiha</th><th className="r">Xarajat</th><th className="r">Natija</th><th className="r">Natija narxi</th><th className="r">Ko'rsatuv</th><th className="r">Bosish</th><th><span className="visually-hidden">Amal</span></th></tr></thead>
         <tbody>{rows.map(({ p, cur: c, prev: pv, err }) => { const cp = c?.results ? c.spend / c.results : 0, pp = pv?.results ? pv.spend / pv.results : 0; return <tr key={p.id}>
           <td><div className="who-cell"><Av name={p.name} /><span><b>{p.name}</b><small>{err ? <span className="bad">{err.slice(0, 70)}</span> : p.ad_account_id || 'Kabinet tanlanmagan'}</small></span></div></td>

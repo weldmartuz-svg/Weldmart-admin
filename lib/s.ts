@@ -28,8 +28,11 @@ export async function graph(path: string, p: Record<string, string> = {}, post =
 export async function tgToken(p?: any) { return dec(p?.tg_bot_token) || (await secret('TELEGRAM_BOT_TOKEN')); }
 export async function notify(p: any, text: string) {
   if (!p?.tg_chat_id) return;
-  const t = await tgToken(p); if (!t) return;
-  try { await tg(t, p.tg_chat_id, text); } catch {}
+  try {
+    const { botFor, botSend } = await import('./tg');
+    const b: any = await botFor(p); if (!b) return;
+    if (b.id) await botSend(b, p.tg_chat_id, text); else await tg(b.tok, p.tg_chat_id, text);
+  } catch {}
 }
 export async function tgApi(token: string, method: string, body: any = {}) {
   const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

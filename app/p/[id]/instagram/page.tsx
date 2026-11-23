@@ -5,6 +5,8 @@ import { db, requireAuth } from '@/lib/s';
 import { publishPost } from '@/lib/ig';
 import { dt, hm, today, dayOf, addDays, q, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
+import { AcctTabs } from '@/components/Tabs';
+
 import { Conn, Flash, Confirm } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -61,8 +63,8 @@ export default async function Ig({ params, searchParams }: any) {
   const byDay: Record<string, any[]> = {};
   for (const x of posts) (byDay[dayOf(at(x))] ||= []).push(x);
   const cur = (on: boolean) => (on ? { 'aria-current': 'true' as const } : {});
-  return (<Shell project={p} active="ig" crumbs={[{ label: handle(p), href: path }, { label: 'Postlar' }]}>
-    <Flash sp={sp} />
+  return (<Shell project={p} active="ig" crumbs={[{ label: 'Instagram', href: '/instagram' }, { label: handle(p) }]}>
+    <AcctTabs p={p} sub="instagram" kind="ig" /><Flash sp={sp} />
     <div className="head"><div><h1>{handle(p)}: postlar</h1><p>Joylash va rejalashtirish, vaqt Toshkent bo'yicha. Navbat har 5 daqiqada tekshiriladi.</p></div><Conn p={p} /></div>
     <details className="disc" open={!posts.length}><summary className="btn">Yangi post</summary>
       <form action={add} className="panel form">
