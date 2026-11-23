@@ -47,6 +47,7 @@ export default async function P({ params }: any) {
   const sum = (k: string) => ads.reduce((a, r) => a + Number(r[k] || 0), 0);
   return (<>
     <h1>{p.name}</h1>
+    <p><a href={`/p/${id}/instagram`}>📅 Instagram postlar</a> · <a href={`/p/${id}/autoreply`}>⚡ Avtojavob</a></p>
     <form action={save} className="c"><h2>Ulanishlar</h2><div className="g">
       <input name="name" defaultValue={p.name} placeholder="Nomi" /><input name="ig_user_id" defaultValue={p.ig_user_id || ''} placeholder="Instagram User ID" />
       <input name="fb_page_id" defaultValue={p.fb_page_id || ''} placeholder="Facebook Page ID" /><input name="ad_account_id" defaultValue={p.ad_account_id || ''} placeholder="Reklama kabineti ID (act_...)" />
