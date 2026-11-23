@@ -12,7 +12,7 @@ export default async function Login({ searchParams }: any) {
     redirect('/login?x=1');
   }
   return (<div className="login">
-    <section className="login-l"><span className="mark" style={{ padding: 0 }}><span>W</span>Weldmart</span>
+    <section className="login-l"><span className="mark" style={{ padding: 0 }}><img src="/logo.png" alt="" width={32} height={32} />Weldmart</span>
       <h1>Hamma akkauntlar bitta navbatda</h1>
       <ul><li>Bir nechta Instagram akkauntga post rejalashtirish</li><li>Kalit so'zli kommentga avtomatik Direct</li><li>Meta reklama xarajati va natijasi</li><li>Komment va Direct'lar Telegram botga</li></ul></section>
     <section className="login-r"><form action={go} className="form"><h2 style={{ fontSize: 'var(--text-2xl)' }}>Kirish</h2>

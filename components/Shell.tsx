@@ -24,7 +24,7 @@ export default async function Shell({ active, crumbs = [], children }: { project
   const nav = await Nav({ active });
   return (<div className="app">
     <aside className="side" aria-label="Asosiy menyu">
-      <Link href="/" className="mark" aria-label="Weldmart Admin, bosh sahifa"><span>W</span>Weldmart</Link>
+      <Link href="/" className="mark" aria-label="Weldmart Admin, bosh sahifa"><img src="/logo.png" alt="" width={32} height={32} />Weldmart</Link>
       <nav style={{ display: 'grid', gap: 'var(--space-3xs)' }}>{nav}</nav>
       <div className="who"><Av name={process.env.ADMIN_EMAIL || 'A'} /><div><span>{process.env.ADMIN_EMAIL || 'admin'}</span><small>Administrator</small></div>
         <a className="btn btn-q btn-s" href="/logout" aria-label="Chiqish"><I n="out" s={16} /></a></div>
