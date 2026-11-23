@@ -48,7 +48,8 @@ export default async function Bot({ params, searchParams }: any) {
   }
   async function saveSet(fd: FormData) {
     'use server'; await requireAuth();
-    await db().from('telegram_bots').update({ name: String(fd.get('name') || '').trim() || bot!.name, welcome_text: String(fd.get('welcome') || '').trim() || null }).eq('id', botId);
+    const nm = String(fd.get('name') || '').trim();
+    await db().from('telegram_bots').update({ ...(nm ? { name: nm } : {}), welcome_text: String(fd.get('welcome') || '').trim() || null }).eq('id', botId);
     revalidatePath('/', 'layout'); redirect(`${path}?t=settings&ok=1`);
   }
   async function rehook() {

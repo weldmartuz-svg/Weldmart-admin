@@ -6,9 +6,10 @@ import { writePost, publishTg, MODELS, fmtTimes, parseTimes } from '@/lib/claude
 import { dt, q } from '@/lib/ui';
 import { Confirm } from './Bits';
 const ST: Record<string, [string, string]> = { draft: ['qoralama', 'chip-acc'], scheduled: ['navbatda', 'chip-cool'], publishing: ['chiqmoqda', 'chip-cool'], published: ['chiqdi', 'chip-ok'], failed: ['xato', 'chip-bad'], canceled: ['bekor', ''] };
+const backUrl = (botId: string, m: string) => `/telegram/${botId}?t=auto${m ? '&' + m : ''}`;
 const F: [string, string, string[]][] = [['q', 'Navbatda', ['scheduled', 'publishing']], ['draft', 'Qoralama', ['draft']], ['pub', 'Chiqqan', ['published']], ['err', 'Xato yoki bekor', ['failed', 'canceled']]];
 export default async function Autopost({ botId, chats, sp }: { botId: string; chats: any[]; sp: any }) {
-  const path = `/telegram/${botId}`, back = (m: string) => `${path}?t=auto&${m}`;
+  const path = `/telegram/${botId}`;
   const [{ data: aps }, { data: posts }, key] = await Promise.all([
     db().from('telegram_autopost').select('*').eq('bot_id', botId).order('created_at'),
     db().from('telegram_posts').select('*').eq('bot_id', botId).order('scheduled_at', { ascending: false }).limit(200), secret('ANTHROPIC_API_KEY')]);
@@ -20,17 +21,38 @@ export default async function Autopost({ botId, chats, sp }: { botId: string; ch
   async function create(fd: FormData) {
     'use server'; await requireAuth();
     const chat = String(fd.get('chat') || ''), brief = String(fd.get('brief') || '').trim(), times = parseTimes(String(fd.get('times') || ''));
-    if (!chat || brief.length < 20) redirect(back('err=' + q("Kanalni tanlang va yo'nalishni kamida bir-ikki gap bilan yozing.")));
-    if (!times.length) redirect(back('err=' + q('Kamida bitta vaqt kiriting, masalan 09:00, 18:00.')));
+    if (!chat || brief.length < 20) redirect(backUrl(botId, 'err=' + q("Kanalni tanlang va yo'nalishni kamida bir-ikki gap bilan yozing.")));
+    if (!times.length) redirect(backUrl(botId, 'err=' + q('Kamida bitta vaqt kiriting, masalan 09:00, 18:00.')));
     const { data: c } = await db().from('telegram_chats').select('title,username').eq('bot_id', botId).eq('chat_id', chat).maybeSingle();
     await db().from('telegram_autopost').insert({ bot_id: botId, chat_id: chat, chat_title: c?.title || c?.username || null, brief, times, mode: fd.get('mode') === 'review' ? 'review' : 'auto', model: String(fd.get('model') || MODELS[0][0]) });
-    revalidatePath(path); redirect(back('ok=' + q("Avtopost yoqildi. Birinchi post navbatdagi vaqtdan oldin yoziladi.")));
+    revalidatePath(path); redirect(backUrl(botId, 'ok=' + q("Avtopost yoqildi. Birinchi post navbatdagi vaqtdan oldin yoziladi.")));
+  }
+  async function manual(fd: FormData) {
+    'use server'; await requireAuth();
+    const chat = String(fd.get('chat') || ''), text = String(fd.get('text') || '').trim(), when = String(fd.get('at') || ''), mode = String(fd.get('mode') || 'now');
+    const file = fd.get('file') as File | null;
+    if (!chat || !text) redirect(backUrl(botId, 'err=' + q('Chat va matn kerak.')));
+    if (mode === 'schedule' && !when) redirect(backUrl(botId, 'err=' + q('Vaqtni tanlang.')));
+    let image: string | null = null;
+    if (file && file.size) {
+      if (file.size > 5 * 1024 * 1024) redirect(backUrl(botId, 'err=' + q('Rasm 5 MB dan katta.')));
+      const name = `tg/${botId}/${Date.now()}.${(file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')}`;
+      const up = await db().storage.from('posts').upload(name, Buffer.from(await file.arrayBuffer()), { contentType: file.type || 'image/jpeg' });
+      if (up.error) redirect(backUrl(botId, 'err=' + q(up.error.message)));
+      image = db().storage.from('posts').getPublicUrl(name).data.publicUrl;
+    }
+    const at = mode === 'schedule' ? new Date(when + ':00+05:00').toISOString() : new Date().toISOString();
+    const { data: row, error } = await db().from('telegram_posts').insert({ bot_id: botId, chat_id: chat, text: text.slice(0, 4000), image_url: image, source: 'manual', scheduled_at: at, status: mode === 'schedule' ? 'scheduled' : 'publishing' }).select('*').single();
+    if (error) redirect(backUrl(botId, 'err=' + q(error.message)));
+    let m = 'pf=q&ok=' + q('Navbatga qo\'shildi.');
+    if (mode !== 'schedule') m = (await publishTg(row)) ? 'pf=pub&ok=' + q('Yuborildi.') : 'pf=err&err=' + q('Yuborilmadi, xato yozuvini ko\'ring.');
+    revalidatePath(path); redirect(backUrl(botId, m));
   }
   async function apAct(fd: FormData) {
     'use server'; await requireAuth();
     const id = String(fd.get('id')), op = String(fd.get('op'));
     const { data: ap } = await db().from('telegram_autopost').select('*').eq('id', id).eq('bot_id', botId).maybeSingle();
-    if (!ap) redirect(back(''));
+    if (!ap) redirect(backUrl(botId, ''));
     let m = '';
     if (op === 'toggle') await db().from('telegram_autopost').update({ active: !ap.active }).eq('id', id);
     if (op === 'del') await db().from('telegram_autopost').delete().eq('id', id);
@@ -39,24 +61,34 @@ export default async function Autopost({ botId, chats, sp }: { botId: string; ch
       try { const text = await writePost(ap); await db().from('telegram_posts').insert({ autopost_id: id, bot_id: botId, chat_id: ap.chat_id, text, scheduled_at: new Date().toISOString(), status: 'draft' }); m = 'pf=draft&ok=' + q("Claude yangi post yozdi. Qoralamada ko'rib chiqing."); }
       catch (e: any) { m = 'err=' + q(e.message); }
     }
-    revalidatePath(path); redirect(back(m));
+    revalidatePath(path); redirect(backUrl(botId, m));
   }
   async function postAct(fd: FormData) {
     'use server'; await requireAuth();
     const id = String(fd.get('id')), op = String(fd.get('op'));
     const { data: p } = await db().from('telegram_posts').select('*').eq('id', id).eq('bot_id', botId).maybeSingle();
-    if (!p) redirect(back(''));
+    if (!p) redirect(backUrl(botId, ''));
     let m = 'pf=' + (fd.get('pf') || 'q');
     if (op === 'save') await db().from('telegram_posts').update({ text: String(fd.get('text') || p.text).slice(0, 4000) }).eq('id', id);
     if (op === 'approve') await db().from('telegram_posts').update({ status: 'scheduled', scheduled_at: Date.parse(p.scheduled_at) < Date.now() ? new Date(Date.now() + 60000).toISOString() : p.scheduled_at }).eq('id', id);
     if (op === 'cancel') await db().from('telegram_posts').update({ status: 'canceled' }).eq('id', id);
     if (op === 'del') await db().from('telegram_posts').delete().eq('id', id);
     if (op === 'now') { const ok = await publishTg(p); m = ok ? 'pf=pub&ok=' + q('Kanalga chiqdi.') : 'pf=err&err=' + q('Chiqmadi, xato yozuvini ko\'ring.'); }
-    revalidatePath(path); redirect(back(m));
+    revalidatePath(path); redirect(backUrl(botId, m));
   }
   const ModelPick = ({ v }: { v?: string }) => <div className="choice">{MODELS.map(([id, l, d]) => <label key={id}><input type="radio" name="model" value={id} defaultChecked={(v || MODELS[0][0]) === id} />{l}<small>{d}</small></label>)}</div>;
   const ModePick = ({ v }: { v?: string }) => <div className="choice"><label><input type="radio" name="mode" value="auto" defaultChecked={v !== 'review'} />Avtomatik<small>yozadi va o'zi chiqaradi</small></label><label><input type="radio" name="mode" value="review" defaultChecked={v === 'review'} />Ko'rib chiqib<small>qoralama, siz tasdiqlaysiz</small></label></div>;
   return <>
+    <details className="disc" open={sp?.compose === '1'}><summary className="btn btn-p">Qo'lda post</summary>
+      {chats.filter(c => c.status === 'active').length ? <form action={manual} className="panel form">
+        <p className="muted">Qo'lda yozilgan post avtopost rejasiga ta'sir qilmaydi: kunlik postlar o'z vaqtida chiqaveradi.</p>
+        <div className="grid2"><label className="field"><span>Kanal yoki chat</span><select name="chat" required defaultValue={targets[0]?.chat_id || ''}>{chats.filter(c => c.status === 'active').map(c => <option key={c.chat_id} value={c.chat_id}>{c.title || (c.username ? '@' + c.username : c.first_name || c.chat_id)}</option>)}</select><span className="help" /></label>
+          <label className="field"><span>Rasm (ixtiyoriy)</span><input type="file" name="file" accept="image/jpeg,image/png" /><span className="help">JPEG yoki PNG, 5 MB gacha. Matn 1024 belgidan uzun bo'lsa, rasm va matn ikki xabar bo'lib boradi.</span></label></div>
+        <label className="field"><span>Matn</span><textarea name="text" rows={8} required /><span className="help">Oxiriga kanal username'ini qo'shishni unutmang.</span></label>
+        <div className="grid2"><div className="choice"><label><input type="radio" name="mode" value="now" defaultChecked />Hozir yuborish<small>darhol chiqadi</small></label><label><input type="radio" name="mode" value="schedule" />Rejalashtirish<small>tanlangan vaqtda</small></label></div>
+          <label className="field"><span>Vaqt (Toshkent)</span><input type="datetime-local" name="at" /><span className="help">Faqat «Rejalashtirish» uchun.</span></label></div>
+        <div><button type="submit" className="btn btn-p">Yuborish</button></div></form>
+        : <div className="empty"><b>Chat yo'q</b><p>Botni kanalga admin qilib qo'shing yoki botga /start yozing.</p></div>}</details>
     {!key && <p className="note note-bad">Claude API kaliti kiritilmagan, shuning uchun post yozilmaydi. <Link href="/settings">Sozlamalar → Claude</Link></p>}
     {A.map(ap => <article key={ap.id} className="rule">
       <div className="sec-h"><div className="row"><h2 style={{ fontSize: 'var(--text-md)', maxWidth: 'none' }}>{ap.chat_title || name(ap.chat_id)}</h2>
@@ -74,7 +106,7 @@ export default async function Autopost({ botId, chats, sp }: { botId: string; ch
           <ModePick v={ap.mode} /><ModelPick v={ap.model} /><div><button type="submit" className="btn btn-p">Saqlash</button></div></form></details>
     </article>)}
 
-    <details className="disc" open={!A.length}><summary className="btn">{A.length ? "Yana kanal qo'shish" : 'Avtopostni sozlash'}</summary>
+    <details className="disc"><summary className="btn">{A.length ? "Yana kanal qo'shish" : 'Claude avtopostini sozlash'}</summary>
       {targets.length ? <form action={create} className="panel form">
         <p className="muted">Claude siz yozgan yo'nalish bo'yicha post yozadi va belgilangan vaqtlarda kanalga chiqaradi. Oxirgi postlarni hisobga olib, mavzuni takrorlamaydi.</p>
         <label className="field"><span>Kanal yoki guruh</span><select name="chat" required><option value="">Tanlang</option>{targets.map(c => <option key={c.chat_id} value={c.chat_id}>{c.title || c.username || c.chat_id}</option>)}</select><span className="help">Bot kanalga admin sifatida qo'shilgan bo'lishi kerak.</span></label>
