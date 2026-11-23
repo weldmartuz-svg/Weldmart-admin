@@ -7,7 +7,7 @@ import { dt, hm, today, dayOf, addDays, q, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
 import { AcctTabs } from '@/components/Tabs';
 
-import { Conn, Flash, Confirm } from '@/components/Bits';
+import { Conn, Flash, Act } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 const TABS: [string, string, string[]][] = [['q', 'Navbatda', ['scheduled', 'publishing']], ['pub', 'Chiqqan', ['published']], ['draft', 'Qoralama', ['draft']], ['err', 'Xato yoki bekor', ['failed', 'canceled']]];
@@ -88,11 +88,11 @@ export default async function Ig({ params, searchParams }: any) {
         <td>{x.media_url ? <img className="thumb" src={x.media_url} alt="" width={44} height={44} /> : <span className="thumb" style={{ display: 'block' }} />}</td>
         <td><div className="clip">{x.caption || <span className="muted">Matnsiz</span>}</div>{x.error && <div className="was bad">{x.error}</div>}</td>
         <td className="m cool" data-label="Vaqt">{dt(at(x))}</td><td><span className={'chip ' + (SL[x.status]?.[1] || '')}>{SL[x.status]?.[0] || x.status}</span></td>
-        <td className="r"><form action={act} className="row" style={{ justifyContent: 'flex-end' }}><input type="hidden" name="pid" value={x.id} />
-          {['scheduled', 'draft', 'failed'].includes(x.status) && <button type="submit" className="btn btn-s" name="op" value="now">Hozir chiqarish</button>}
-          {['draft', 'canceled'].includes(x.status) && <button type="submit" className="btn btn-s" name="op" value="queue">Navbatga</button>}
-          {x.status === 'scheduled' && <button type="submit" className="btn btn-s btn-q" name="op" value="cancel">Bekor qilish</button>}
-          {x.status !== 'published' && <Confirm label="O'chirish"><button type="submit" className="btn btn-s btn-bad" name="op" value="del">Ha, o'chirish</button></Confirm>}</form></td></tr>)}</tbody></table></div>
+        <td className="r"><div className="row" style={{ justifyContent: 'flex-end' }}>
+          {['scheduled', 'draft', 'failed'].includes(x.status) && <Act action={act} fields={{ pid: x.id }} op="now" label="Hozir chiqarish" />}
+          {['draft', 'canceled'].includes(x.status) && <Act action={act} fields={{ pid: x.id }} op="queue" label="Navbatga" />}
+          {x.status === 'scheduled' && <Act action={act} fields={{ pid: x.id }} op="cancel" label="Bekor qilish" cls="btn-q" />}
+          {x.status !== 'published' && <Act action={act} fields={{ pid: x.id }} op="del" label="O'chirish" confirm="Ha, o'chirish" />}</div></td></tr>)}</tbody></table></div>
       : <div className="empty"><b>{tab === 'q' ? 'Navbatda post yo\'q' : tab === 'pub' ? 'Hali chiqqan post yo\'q' : tab === 'draft' ? "Qoralama yo'q" : 'Xato yoki bekor qilingan post yo\'q'}</b><p>{tab === 'q' ? "«Yangi post» bilan rasm yuklang va vaqtini tanlang, u shu yerda navbatga turadi." : "Bu yerda shu holatdagi postlar ko'rinadi."}</p></div>)
       : <div className="cal" role="grid" aria-label="Postlar kalendari">{WD.map(w => <div key={w} className="wd" role="columnheader">{w}</div>)}{cells.map(d => <div key={d} role="gridcell" className={(d.slice(0, 7) !== m ? 'out' : '') + (d === today() ? ' today' : '')}>
         <span className="d">{Number(d.slice(8))}</span>{(byDay[d] || []).sort((a, b) => Date.parse(at(a)) - Date.parse(at(b))).map(x => <span key={x.id} className={'ev ' + x.status} title={`${hm(at(x))} ${SL[x.status]?.[0] || ''}: ${x.caption || ''}`}><span className="m">{hm(at(x))}</span> {(x.caption || 'Rasm').slice(0, 28)}{(x.caption || '').length > 28 ? '…' : ''}</span>)}</div>)}</div>}

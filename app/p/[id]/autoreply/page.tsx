@@ -6,7 +6,7 @@ import { dt, q, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
 import { AcctTabs } from '@/components/Tabs';
 
-import { Conn, Flash, Confirm } from '@/components/Bits';
+import { Conn, Flash, Act } from '@/components/Bits';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 const kws = (s: string) => s.split(/[,\n]/).map(x => x.trim()).filter(Boolean);
@@ -57,10 +57,10 @@ export default async function Ar({ params, searchParams }: any) {
         <div><button type="submit" className="btn btn-p">Qo'shish</button></div></form></details>
     {(rules || []).length ? (rules || []).map(r => <article key={r.id} className="rule" aria-label={`Qoida: ${r.post_label || r.ig_media_id}`}>
       <div className="sec-h"><div className="row"><h2 style={{ fontSize: 'var(--text-md)', maxWidth: 'none' }}>{(r.post_label || 'Post ' + r.ig_media_id).slice(0, 70)}</h2><span className={'chip ' + (r.active ? 'chip-ok' : '')}>{r.active ? 'ishlayapti' : "to'xtatilgan"}</span><span className="was">Oxirgi tekshiruv <span className="m cool">{dt(r.last_checked)}</span></span></div>
-        <form action={act} className="row"><input type="hidden" name="rid" value={r.id} />
-          <button type="submit" className="btn btn-s" name="op" value="check">Hozir tekshirish</button>
-          <button type="submit" className="btn btn-s btn-q" name="op" value="toggle">{r.active ? "To'xtatish" : 'Yoqish'}</button>
-          <Confirm label="O'chirish"><button type="submit" className="btn btn-s btn-bad" name="op" value="del">Ha, o'chirish</button></Confirm></form></div>
+        <div className="row">
+          <Act action={act} fields={{ rid: r.id }} op="check" label="Hozir tekshirish" />
+          <Act action={act} fields={{ rid: r.id }} op="toggle" label={r.active ? "To'xtatish" : 'Yoqish'} cls="btn-q" />
+          <Act action={act} fields={{ rid: r.id }} op="del" label="O'chirish" confirm="Ha, o'chirish" /></div></div>
       <div className="seams">
         <section><h3>Post</h3><p className="m cool">{r.ig_media_id}</p><p className="foot"><span className="m cool">{r.seen}</span> ta komment ko'rildi</p></section>
         <section><h3>Komment ichida</h3><div className="kw">{r.keywords.map((k: string) => <span key={k} className="chip">{k}</span>)}</div><p className="foot"><span className="m cool">{r.matched}</span> ta mos keldi</p></section>

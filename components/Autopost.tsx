@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { db, requireAuth, secret } from '@/lib/s';
 import { writePost, publishTg, MODELS, fmtTimes, parseTimes } from '@/lib/claude';
 import { dt, q } from '@/lib/ui';
-import { Confirm } from './Bits';
+import { Confirm, Act } from './Bits';
 const ST: Record<string, [string, string]> = { draft: ['qoralama', 'chip-acc'], scheduled: ['navbatda', 'chip-cool'], publishing: ['chiqmoqda', 'chip-cool'], published: ['chiqdi', 'chip-ok'], failed: ['xato', 'chip-bad'], canceled: ['bekor', ''] };
 const backUrl = (botId: string, m: string) => `/telegram/${botId}?t=auto${m ? '&' + m : ''}`;
 const F: [string, string, string[]][] = [['q', 'Navbatda', ['scheduled', 'publishing']], ['draft', 'Qoralama', ['draft']], ['pub', 'Chiqqan', ['published']], ['err', 'Xato yoki bekor', ['failed', 'canceled']]];
@@ -94,10 +94,10 @@ export default async function Autopost({ botId, chats, sp }: { botId: string; ch
       <div className="sec-h"><div className="row"><h2 style={{ fontSize: 'var(--text-md)', maxWidth: 'none' }}>{ap.chat_title || name(ap.chat_id)}</h2>
         <span className={'chip ' + (ap.active ? 'chip-ok' : '')}>{ap.active ? 'ishlayapti' : "to'xtatilgan"}</span><span className="chip">{ap.mode === 'review' ? "ko'rib chiqib" : 'avtomatik'}</span>
         <span className="was">Har kuni <span className="m cool">{fmtTimes(ap.times)}</span></span></div>
-        <form action={apAct} className="row"><input type="hidden" name="id" value={ap.id} />
-          <button type="submit" className="btn btn-s" name="op" value="write">Hozir yozdirish</button>
-          <button type="submit" className="btn btn-s btn-q" name="op" value="toggle">{ap.active ? "To'xtatish" : 'Yoqish'}</button>
-          <Confirm label="O'chirish"><button type="submit" className="btn btn-s btn-bad" name="op" value="del">Ha, o'chirish</button></Confirm></form></div>
+        <div className="row">
+          <Act action={apAct} fields={{ id: ap.id }} op="write" label="Hozir yozdirish" />
+          <Act action={apAct} fields={{ id: ap.id }} op="toggle" label={ap.active ? "To'xtatish" : 'Yoqish'} cls="btn-q" />
+          <Act action={apAct} fields={{ id: ap.id }} op="del" label="O'chirish" confirm="Ha, o'chirish" /></div></div>
       <p className="muted" style={{ whiteSpace: 'pre-wrap' }}>{ap.brief}</p>
       <details className="disc"><summary className="btn btn-s btn-q">Tahrirlash</summary>
         <form action={apAct} className="panel form"><input type="hidden" name="id" value={ap.id} /><input type="hidden" name="op" value="edit" />
@@ -126,11 +126,11 @@ export default async function Autopost({ botId, chats, sp }: { botId: string; ch
                 : <div className="bubble" style={{ marginTop: 'var(--space-xs)' }}>{p.text}</div>}</details>
             {p.source && <div className="was">Manba: {p.source.split(/\s+/).filter(Boolean).map((u: string, i: number) => <a key={i} href={u} target="_blank" rel="noopener" style={{ marginRight: 8 }}>{(() => { try { return new URL(u).hostname.replace('www.', ''); } catch { return u; } })()}</a>)}</div>}
             {p.error && <div className="was bad">{p.error}</div>}</td>
-          <td className="r"><form action={postAct} className="row" style={{ justifyContent: 'flex-end' }}><input type="hidden" name="id" value={p.id} /><input type="hidden" name="pf" value={f} />
-            {p.status === 'draft' && <button type="submit" className="btn btn-s" name="op" value="approve">Tasdiqlash</button>}
-            {['draft', 'scheduled', 'failed'].includes(p.status) && <button type="submit" className="btn btn-s" name="op" value="now">Hozir chiqarish</button>}
-            {p.status === 'scheduled' && <button type="submit" className="btn btn-s btn-q" name="op" value="cancel">Bekor qilish</button>}
-            {p.status !== 'published' && <Confirm label="O'chirish"><button type="submit" className="btn btn-s btn-bad" name="op" value="del">Ha</button></Confirm>}</form></td></tr>)}</tbody></table></div>
+          <td className="r"><div className="row" style={{ justifyContent: 'flex-end' }}>
+            {p.status === 'draft' && <Act action={postAct} fields={{ id: p.id, pf: f }} op="approve" label="Tasdiqlash" />}
+            {['draft', 'scheduled', 'failed'].includes(p.status) && <Act action={postAct} fields={{ id: p.id, pf: f }} op="now" label="Hozir chiqarish" />}
+            {p.status === 'scheduled' && <Act action={postAct} fields={{ id: p.id, pf: f }} op="cancel" label="Bekor qilish" cls="btn-q" />}
+            {p.status !== 'published' && <Act action={postAct} fields={{ id: p.id, pf: f }} op="del" label="O'chirish" confirm="Ha" />}</div></td></tr>)}</tbody></table></div>
         : <div className="empty"><b>Bu holatda post yo'q</b><p>Avtomatik rejimda post vaqtidan taxminan 2 soat oldin, ko'rib chiqish rejimida bir kun oldin yoziladi.</p></div>}</section>}
   </>;
 }

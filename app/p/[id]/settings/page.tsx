@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { db, requireAuth, graph, secret, enc, tg } from '@/lib/s';
 import { q, handle } from '@/lib/ui';
 import Shell from '@/components/Shell';
-import { Flash, Confirm } from '@/components/Bits';
+import { Flash, Confirm, Act } from '@/components/Bits';
 import { AcctTabs } from '@/components/Tabs';
 import { botFor, botSend } from '@/lib/tg';
 export const dynamic = 'force-dynamic';
@@ -77,8 +77,8 @@ export default async function PS({ params, searchParams }: any) {
         <div className="row"><a className="btn" href={`https://t.me/${botName}?start=${p.tg_link_code}`} target="_blank" rel="noopener">Shaxsiy chatga ulash</a>
           <a className="btn" href={`https://t.me/${botName}?startgroup=${p.tg_link_code}`} target="_blank" rel="noopener">Guruhga qo'shish</a></div>
         {p.tg_chat_id && <p className="was">Ulangan chat ID <span className="m cool">{p.tg_chat_id}</span>{p.tg_bot_id && (bots || []).find(b => b.id === p.tg_bot_id) ? <> bot orqali <span className="amber">@{(bots || []).find(b => b.id === p.tg_bot_id)!.username}</span></> : null}</p>}
-        <form action={tgAct} className="row">{p.tg_chat_id && <><button type="submit" className="btn btn-s" name="op" value="test">Sinov xabari</button><button type="submit" className="btn btn-s btn-q" name="op" value="unlink">Chatni uzish</button></>}
-          <button type="submit" className="btn btn-s btn-q" name="op" value="relink">Yangi havola</button></form>
+        <div className="row">{p.tg_chat_id && <><Act action={tgAct} fields={{}} op="test" label="Sinov xabari" /><Act action={tgAct} fields={{}} op="unlink" label="Chatni uzish" cls="btn-q" /></>}
+          <Act action={tgAct} fields={{}} op="relink" label="Yangi havola" cls="btn-q" /></div>
       </> : <p className="note">Avval bot qo'shing: <a href="/telegram/new">Telegram → + Bot</a>.</p>}
     </section>
 

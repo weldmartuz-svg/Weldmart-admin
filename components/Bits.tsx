@@ -25,3 +25,7 @@ export function Flash({ sp }: { sp: any }) {
 export function Confirm({ label, children, tone = 'bad' }: { label: string; children: any; tone?: 'bad' | 'plain' }) {
   return <details className="confirm"><summary className={'btn btn-s' + (tone === 'bad' ? ' btn-bad' : '')}>{label}</summary><span className="row">Rostdanmi? {children}</span></details>;
 }
+export function Act({ action, fields, op, label, cls = '', confirm }: { action: any; fields: Record<string, string>; op: string; label: string; cls?: string; confirm?: string }) {
+  const form = (text: string, c: string) => <form action={action} style={{ display: 'inline-flex' }}>{Object.entries(fields).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}<input type="hidden" name="op" value={op} /><button type="submit" className={'btn btn-s ' + c}>{text}</button></form>;
+  return confirm ? <Confirm label={label}>{form(confirm, 'btn-bad')}</Confirm> : form(label, cls);
+}
