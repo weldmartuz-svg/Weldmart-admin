@@ -88,10 +88,11 @@ export default async function Autopost({ botId, chats, sp }: { botId: string; ch
       <nav className="seg" aria-label="Holat">{F.map(([k, l, s]) => <a key={k} href={`?t=auto&pf=${k}`} {...(f === k ? { 'aria-current': 'true' } : {})}>{l} <span className="m cool" style={{ marginLeft: 6 }}>{P.filter(p => s.includes(p.status)).length}</span></a>)}</nav></div>
       {list.length ? <div className="scroll"><table className="tbl stack"><thead><tr><th>Vaqt</th><th>Kanal</th><th>Holat</th><th>Matn</th><th><span className="visually-hidden">Amallar</span></th></tr></thead>
         <tbody>{list.map(p => <tr key={p.id}><td className="m cool">{dt(p.published_at || p.scheduled_at)}</td><td>{name(p.chat_id)}</td><td><span className={'chip ' + (ST[p.status]?.[1] || '')}>{ST[p.status]?.[0] || p.status}</span></td>
-          <td style={{ minWidth: '20rem', maxWidth: '36rem' }}>
+          <td style={{ minWidth: '20rem', maxWidth: '36rem' }}>{p.image_url && <img className="thumb" src={p.image_url} alt="" width={44} height={44} style={{ float: 'left', marginRight: 'var(--space-sm)' }} />}
             <details><summary style={{ cursor: 'pointer' }}><span className="clip" style={{ display: 'inline-block', maxWidth: '30rem', verticalAlign: 'bottom' }}>{p.text.split('\n')[0]}</span></summary>
               {['draft', 'scheduled', 'failed'].includes(p.status) ? <form action={postAct} className="form" style={{ marginTop: 'var(--space-xs)' }}><input type="hidden" name="id" value={p.id} /><input type="hidden" name="pf" value={f} /><input type="hidden" name="op" value="save" /><textarea name="text" rows={10} defaultValue={p.text} /><div><button type="submit" className="btn btn-s">Matnni saqlash</button></div></form>
                 : <div className="bubble" style={{ marginTop: 'var(--space-xs)' }}>{p.text}</div>}</details>
+            {p.source && <div className="was">Manba: {p.source.split(/\s+/).filter(Boolean).map((u: string, i: number) => <a key={i} href={u} target="_blank" rel="noopener" style={{ marginRight: 8 }}>{(() => { try { return new URL(u).hostname.replace('www.', ''); } catch { return u; } })()}</a>)}</div>}
             {p.error && <div className="was bad">{p.error}</div>}</td>
           <td className="r"><form action={postAct} className="row" style={{ justifyContent: 'flex-end' }}><input type="hidden" name="id" value={p.id} /><input type="hidden" name="pf" value={f} />
             {p.status === 'draft' && <button type="submit" className="btn btn-s" name="op" value="approve">Tasdiqlash</button>}

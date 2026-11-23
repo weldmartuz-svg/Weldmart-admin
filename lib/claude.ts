@@ -1,5 +1,5 @@
 import { db, secret } from './s';
-import { getBot, botSend } from './tg';
+import { getBot, botSend, botPhoto } from './tg';
 import { today, TZ } from './ui';
 export const MODELS: [string, string, string][] = [['claude-sonnet-5-5', 'Sonnet', 'sifatli matn'], ['claude-haiku-5-5', 'Haiku', 'tez va arzon']];
 export async function claude(system: string, user: string, model = 'claude-sonnet-5-5') {
@@ -44,7 +44,7 @@ export async function planOne(ap: any) {
 export async function publishTg(p: any) {
   try {
     const bot = await getBot(p.bot_id); if (!bot) throw new Error('Bot topilmadi');
-    await botSend(bot, p.chat_id, p.text);
+    if (p.image_url) await botPhoto(bot, p.chat_id, p.image_url, p.text); else await botSend(bot, p.chat_id, p.text);
     await db().from('telegram_posts').update({ status: 'published', published_at: new Date().toISOString(), error: null }).eq('id', p.id);
     return true;
   } catch (e: any) { await db().from('telegram_posts').update({ status: 'failed', error: String(e.message || e).slice(0, 300) }).eq('id', p.id); return false; }

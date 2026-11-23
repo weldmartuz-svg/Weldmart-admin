@@ -17,6 +17,17 @@ export async function botSend(bot: any, chat: string, text: string) {
     throw e;
   }
 }
+export async function botPhoto(bot: any, chat: string, url: string, text: string) {
+  try {
+    if (text.length <= 1024) await tgApi(bot.tok, 'sendPhoto', { chat_id: chat, photo: url, caption: text });
+    else { await tgApi(bot.tok, 'sendPhoto', { chat_id: chat, photo: url }); await tgApi(bot.tok, 'sendMessage', { chat_id: chat, text }); }
+    await db().from('telegram_messages').insert({ bot_id: bot.id, chat_id: chat, direction: 'out', text: '[rasm] ' + text });
+    return true;
+  } catch (e: any) {
+    if (/blocked|deactivated|kicked|chat not found/i.test(e.message)) await db().from('telegram_chats').update({ status: 'blocked' }).eq('bot_id', bot.id).eq('chat_id', chat);
+    throw e;
+  }
+}
 export async function botFor(p: any) {
   if (p?.tg_bot_id) { const b = await getBot(p.tg_bot_id); if (b) return b; }
   const own = dec(p?.tg_bot_token); if (own) return { id: null, tok: own };
