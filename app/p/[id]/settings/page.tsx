@@ -17,8 +17,9 @@ export default async function PS({ params, searchParams }: any) {
   const token = !!(await secret('META_TOKEN'));
   let pages: any[] = [], ads: any[] = [], merr = '';
   if (token) {
-    try { pages = (await graph('me/accounts', { fields: 'id,name,instagram_business_account{id,username}', limit: '100' })).data || []; } catch (e: any) { merr = e.message; }
-    try { ads = (await graph('me/adaccounts', { fields: 'id,name', limit: '100' })).data || []; } catch (e: any) { merr ||= e.message; }
+    const [a, b] = await Promise.allSettled([graph('me/accounts', { fields: 'id,name,instagram_business_account{id,username}', limit: '100' }), graph('me/adaccounts', { fields: 'id,name', limit: '100' })]);
+    if (a.status === 'fulfilled') pages = a.value.data || []; else merr = String(a.reason?.message || a.reason);
+    if (b.status === 'fulfilled') ads = b.value.data || []; else merr ||= String(b.reason?.message || b.reason);
   }
   const igs = pages.filter(x => x.instagram_business_account);
   const { data: bots } = await db().from('telegram_bots').select('id,name,username').order('created_at');

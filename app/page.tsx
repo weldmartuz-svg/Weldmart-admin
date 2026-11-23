@@ -10,9 +10,11 @@ export const maxDuration = 60;
 export default async function Home({ searchParams }: any) {
   await requireAuth();
   const sp = await searchParams, r = range(sp, '30');
-  const { data: ps, error: le } = await db().from('projects').select('*').order('created_at');
+  const [{ data: ps, error: le }, tok, { data: posts }, { data: rules }, { data: tgc }] = await Promise.all([
+    db().from('projects').select('*').order('created_at'), secret('META_TOKEN'),
+    db().from('ig_posts').select('id,project_id,status,scheduled_at,created_at,caption'), db().from('autoreply_rules').select('project_id,active,sent'), db().from('telegram_chats').select('type,status')]);
   const projects = ps || [], targets = projects.filter(p => p.kind === 'target');
-  const hasToken = !!(await secret('META_TOKEN'));
+  const hasToken = !!tok;
   const rows = await Promise.all(targets.map(async p => {
     if (!p.ad_account_id || !hasToken) return { p, cur: null as any, prev: null as any, err: '' };
     try { const [cur, prev] = await Promise.all([accountStats(p.ad_account_id, r.since, r.until), accountStats(p.ad_account_id, r.pSince, r.pUntil)]); return { p, cur, prev, err: '' }; }
@@ -21,9 +23,6 @@ export default async function Home({ searchParams }: any) {
   const cur = sum(rows.filter(x => x.cur).map(x => x.cur)), prev = sum(rows.filter(x => x.prev).map(x => x.prev));
   const cpr = cur.results ? cur.spend / cur.results : 0, ppr = prev.results ? prev.spend / prev.results : 0;
   const s0 = new Date(r.since + 'T00:00:00+05:00').toISOString(), s1 = new Date(r.until + 'T23:59:59+05:00').toISOString();
-  const { data: posts } = await db().from('ig_posts').select('id,project_id,status,scheduled_at,created_at,caption');
-  const { data: rules } = await db().from('autoreply_rules').select('project_id,active,sent');
-  const { data: tgc } = await db().from('telegram_chats').select('type,status');
   const tgUsers = (tgc || []).filter(c => c.type === 'private' && c.status === 'active').length;
   const at = (x: any) => x.scheduled_at || x.created_at;
   const pubIn = (pid?: string) => (posts || []).filter(x => x.status === 'published' && at(x) >= s0 && at(x) <= s1 && (!pid || x.project_id === pid)).length;

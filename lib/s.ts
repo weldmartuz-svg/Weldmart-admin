@@ -3,7 +3,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import crypto from 'crypto';
 
-export const db = () => createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+let _db: ReturnType<typeof createClient> | undefined;
+export const db = () => (_db ||= createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } })) as any as ReturnType<typeof createClient<any>>;
 const key = () => crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || '').digest();
 export const enc = (t: string) => { const iv = crypto.randomBytes(12); const c = crypto.createCipheriv('aes-256-gcm', key(), iv); const e = Buffer.concat([c.update(t, 'utf8'), c.final()]); return [iv, c.getAuthTag(), e].map(b => b.toString('base64')).join('.'); };
 export const dec = (s?: string | null) => { if (!s) return ''; try { const [iv, tag, e] = s.split('.').map(x => Buffer.from(x, 'base64')); const d = crypto.createDecipheriv('aes-256-gcm', key(), iv); d.setAuthTag(tag); return Buffer.concat([d.update(e), d.final()]).toString('utf8'); } catch { return ''; } };
@@ -14,15 +15,18 @@ export async function requireAuth() {
   const ok = exp && sig && sig.length === 64 && Number(exp) > Date.now() && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(sign(exp)));
   if (!ok) redirect('/login');
 }
+const _sec = new Map<string, { v: string; t: number }>();
 export async function secret(k: string) {
+  const c = _sec.get(k); if (c && Date.now() - c.t < 60_000) return c.v;
   const { data } = await db().from('app_settings').select('value').eq('key', k).maybeSingle();
-  return dec(data?.value) || process.env[k] || '';
+  const v = dec(data?.value) || process.env[k] || '';
+  _sec.set(k, { v, t: Date.now() }); return v;
 }
-export async function setSecret(k: string, v: string) { if (v) await db().from('app_settings').upsert({ key: k, value: enc(v), updated_at: new Date().toISOString() }); }
+export async function setSecret(k: string, v: string) { if (v) { await db().from('app_settings').upsert({ key: k, value: enc(v), updated_at: new Date().toISOString() }); _sec.delete(k); } }
 export async function graph(path: string, p: Record<string, string> = {}, post = false) {
   const body = new URLSearchParams({ ...p, access_token: await secret('META_TOKEN') });
   const url = `https://graph.facebook.com/v21.0/${path}`;
-  const r = await fetch(post ? url : url + '?' + body, post ? { method: 'POST', body } : {});
+  const r = await fetch(post ? url : url + '?' + body, post ? { method: 'POST', body, cache: 'no-store' } : ({ next: { revalidate: 120 } } as any));
   const j = await r.json(); if (j.error) throw new Error(j.error.message); return j;
 }
 export async function tgToken(p?: any) { return dec(p?.tg_bot_token) || (await secret('TELEGRAM_BOT_TOKEN')); }

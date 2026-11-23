@@ -5,8 +5,7 @@ import { isIg } from './Shell';
 const IG_SUB: [string, string][] = [['instagram', 'Postlar'], ['autoreply', 'Avtojavob'], ['inbox', 'Xabarlar'], ['settings', 'Sozlamalar']];
 const AD_SUB: [string, string][] = [['', 'Statistika'], ['settings', 'Sozlamalar']];
 export async function AcctTabs({ p, sub, kind }: { p: any; sub: string; kind: 'ig' | 'ad' }) {
-  const { data } = await db().from('projects').select('id,name,kind,ig_user_id,ig_username').order('created_at');
-  const { data: q } = await db().from('ig_posts').select('project_id').eq('status', 'scheduled');
+  const [{ data }, { data: q }] = await Promise.all([db().from('projects').select('id,name,kind,ig_user_id,ig_username').order('created_at'), db().from('ig_posts').select('project_id').eq('status', 'scheduled')]);
   const list = (data || []).filter(x => (kind === 'ig' ? isIg(x) : x.kind === 'target'));
   const subs = kind === 'ig' ? IG_SUB : AD_SUB;
   const base = (id: string, s: string) => `/p/${id}${s ? '/' + s : ''}`;

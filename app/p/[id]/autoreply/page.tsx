@@ -13,9 +13,8 @@ const kws = (s: string) => s.split(/[,\n]/).map(x => x.trim()).filter(Boolean);
 export default async function Ar({ params, searchParams }: any) {
   await requireAuth();
   const { id } = await params, sp = await searchParams;
-  const { data: p } = await db().from('projects').select('*').eq('id', id).maybeSingle();
+  const [{ data: p }, { data: rules }] = await Promise.all([db().from('projects').select('*').eq('id', id).maybeSingle(), db().from('autoreply_rules').select('*').eq('project_id', id).order('created_at', { ascending: false })]);
   if (!p) notFound();
-  const { data: rules } = await db().from('autoreply_rules').select('*').eq('project_id', id).order('created_at', { ascending: false });
   let media: any[] = [], merr = '';
   if (p.ig_user_id) { try { media = (await graph(`${p.ig_user_id}/media`, { fields: 'id,caption,timestamp', limit: '25' })).data || []; } catch (e: any) { merr = e.message; } }
   const path = `/p/${id}/autoreply`;

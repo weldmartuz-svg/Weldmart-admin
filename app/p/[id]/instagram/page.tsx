@@ -17,10 +17,10 @@ export default async function Ig({ params, searchParams }: any) {
   await requireAuth();
   const { id } = await params, sp = await searchParams;
   const tab = TABS.find(t => t[0] === sp?.s) ? sp.s : 'q', view = sp?.v === 'cal' ? 'cal' : 'list';
-  const { data: p } = await db().from('projects').select('*').eq('id', id).maybeSingle();
+  const [{ data: p }, { data: others }, { data: all }] = await Promise.all([db().from('projects').select('*').eq('id', id).maybeSingle(),
+    db().from('projects').select('id,name,ig_username,ig_user_id').neq('id', id).not('ig_user_id', 'is', null).order('created_at'),
+    db().from('ig_posts').select('*').eq('project_id', id).order('created_at', { ascending: false }).limit(500)]);
   if (!p) notFound();
-  const { data: others } = await db().from('projects').select('id,name,ig_username,ig_user_id').neq('id', id).not('ig_user_id', 'is', null).order('created_at');
-  const { data: all } = await db().from('ig_posts').select('*').eq('project_id', id).order('created_at', { ascending: false }).limit(500);
   const posts = all || [], at = (x: any) => x.scheduled_at || x.created_at;
   const of = (k: string) => posts.filter(x => TABS.find(t => t[0] === k)![2].includes(x.status));
   const list = of(tab).sort((a, b) => (tab === 'q' ? 1 : -1) * (Date.parse(at(a)) - Date.parse(at(b))));
